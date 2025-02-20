@@ -3,109 +3,131 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Waddle Island Adventures</title>
+  <title>Waddle Island Adventures Dev Log</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
-      background-color: #1e1e1e;
-      color: #fff;
+      background: linear-gradient(to bottom, #87CEEB, #B0E0E6); /* Light blue gradient */
+      color: #333; /* Darker text for better contrast */
     }
     header {
-      background-color: #333;
-      padding: 20px;
+      background: url('clouds.jpg') no-repeat center center/cover; /* Clouds image */
+      padding: 60px 20px;
       text-align: center;
+      color: #fff;
     }
     header h1 {
       margin: 0;
       font-size: 2.5rem;
       color: #4caf50; /* Green for the duck */
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Add shadow for better visibility */
     }
     nav {
       display: flex;
       justify-content: center;
-      background-color: #444;
+      background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white */
       padding: 10px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
     }
     nav a {
-      color: #fff;
+      color: #333;
       text-decoration: none;
       margin: 0 15px;
       font-size: 1.1rem;
+      font-weight: bold;
     }
     nav a:hover {
       color: #4caf50; /* Green for the duck */
     }
     .hero {
-      background: url('waddle-island.jpg') no-repeat center center/cover;
-      height: 400px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: rgba(255, 255, 255, 0.8); /* Semi-transparent white */
+      padding: 20px;
       text-align: center;
+      border-radius: 10px;
+      margin: 20px auto;
+      max-width: 800px;
     }
     .hero h2 {
-      font-size: 3rem;
-      background-color: rgba(0, 0, 0, 0.5);
-      padding: 10px 20px;
-      border-radius: 10px;
+      font-size: 2.5rem;
+      color: #333;
+      margin: 0;
     }
     .content {
+      background: rgba(255, 255, 255, 0.8); /* Semi-transparent white */
       padding: 20px;
       max-width: 800px;
-      margin: 0 auto;
+      margin: 20px auto;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
     }
     .content h3 {
       color: #4caf50; /* Green for the duck */
     }
+    .post {
+      margin-bottom: 40px;
+    }
+    .post h4 {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .post p {
+      line-height: 1.6;
+      color: #555;
+    }
+    .post img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
     footer {
-      background-color: #333;
+      background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white */
       text-align: center;
       padding: 10px;
       margin-top: 20px;
+      color: #333;
+      box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Waddle Island Adventures</h1>
+    <h1>Waddle Island Adventures Dev Log</h1>
   </header>
   <nav>
     <a href="#about">About</a>
-    <a href="#features">Features</a>
-    <a href="#download">Download</a>
+    <a href="#updates">Updates</a>
     <a href="#contact">Contact</a>
   </nav>
   <div class="hero">
-    <h2>Glide, Waddle, and Save the World!</h2>
+    <h2>Follow the Journey of the Green Duck!</h2>
   </div>
   <div class="content">
     <section id="about">
-      <h3>About the Game</h3>
-      <p>In <strong>Waddle Island Adventures</strong>, you play as a brave little green duck on a mission to save the world from the clutches of an evil frog! Armed with your wits, courage, and the ability to glide through the air, you'll explore lush forests, treacherous swamps, and mysterious caves to uncover the frog's sinister plans.</p>
-      <p>With your unique gliding ability, you'll soar over obstacles, navigate dangerous terrain, and outsmart the frog's minions. Can you stop the evil frog and restore peace to the island?</p>
+      <h3>About the Project</h3>
+      <p><strong>Waddle Island Adventures</strong> is an indie game being developed by a small team passionate about creating fun and immersive experiences. You play as a brave green duck who must save the world from an evil frog by gliding through lush forests, treacherous swamps, and mysterious caves.</p>
+      <p>This dev log will document our progress, challenges, and milestones as we bring this game to life. Stay tuned for regular updates!</p>
     </section>
-    <section id="features">
-      <h3>Features</h3>
-      <ul>
-        <li>Play as a heroic green duck with the ability to glide</li>
-        <li>Explore a vibrant and dangerous world filled with secrets</li>
-        <li>Battle the evil frog and his minions</li>
-        <li>Solve environmental puzzles and unlock new areas</li>
-        <li>Use gliding to navigate tricky terrain and reach hidden locations</li>
-        <li>Stunning visuals and an immersive soundtrack</li>
-      </ul>
-    </section>
-    <section id="download">
-      <h3>Download</h3>
-      <p>Ready to join the adventure? Download <strong>Waddle Island Adventures</strong> now and help the green duck save the world!</p>
-      <a href="#" style="color: #4caf50;">Download for PC</a> | 
-      <a href="#" style="color: #4caf50;">Download on Steam</a>
+    <section id="updates">
+      <h3>Dev Log Updates</h3>
+      <div class="post">
+        <h4>Update #1: Concept Art and Early Prototypes</h4>
+        <p><strong>Date:</strong> October 10, 2023</p>
+        <p>This week, we finalized the concept art for the green duck and the evil frog. We also built a basic prototype to test the duck's gliding mechanics. Here's a sneak peek at the early prototype:</p>
+        <img src="prototype-screenshot.jpg" alt="Early prototype screenshot of Waddle Island Adventures">
+      </div>
+      <div class="post">
+        <h4>Update #2: Level Design Begins</h4>
+        <p><strong>Date:</strong> October 17, 2023</p>
+        <p>We've started designing the first level, which takes place in a lush forest. The goal is to create a vibrant and immersive environment that challenges players to use their gliding ability creatively. Here's a work-in-progress screenshot:</p>
+        <img src="level-design-wip.jpg" alt="Work-in-progress level design for Waddle Island Adventures">
+      </div>
     </section>
     <section id="contact">
       <h3>Contact Us</h3>
-      <p>Have questions or feedback? Reach out to us at <a href="jimmyc41018@gmail.com" style="color: #4caf50;">jimmyc41018@gmail.com</a>.</p>
+      <p>Have questions or feedback? Reach out to us at <a href="mailto:jimmyc41018@gmail.com" style="color: #4caf50;">jimmyc41018@gmail.com</a>.</p>
     </section>
   </div>
   <footer>
