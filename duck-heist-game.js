@@ -12,17 +12,20 @@ document.addEventListener("DOMContentLoaded", function () {
     gameCanvas.height = 600;
     gameContainer.appendChild(gameCanvas);
 
+    // Load Duck Image
+    const duckImg = new Image();
+    duckImg.src = "duck.png"; // Make sure the duck image is in the correct folder
+
     // Game Objects
-    let duck = { x: 50, y: 300, width: 40, height: 40, speed: 5 };
-    let bread = { x: Math.random() * 760, y: Math.random() * 560, width: 20, height: 20 };
-    let guards = [{ x: 600, y: 300, width: 40, height: 40, speed: 2 }];
+    let duck = { x: 50, y: 300, width: 50, height: 50, speed: 7 };
+    let bread = { x: Math.random() * 760, y: Math.random() * 560, width: 30, height: 30 };
+    let guards = [{ x: 600, y: 300, width: 40, height: 40, speed: 3 }];
     let obstacles = [{ x: 400, y: 200, width: 50, height: 50 }];
     let score = 0;
     let timeLeft = 60;
 
     function drawDuck() {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
+        ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
     }
 
     function drawBread() {
@@ -60,6 +63,16 @@ document.addEventListener("DOMContentLoaded", function () {
                a.y + a.height > b.y;
     }
 
+    function restartGame() {
+        score = 0;
+        timeLeft = 60;
+        duck.x = 50;
+        duck.y = 300;
+        guards = [{ x: 600, y: 300, width: 40, height: 40, speed: 3 }];
+        bread.x = Math.random() * 760;
+        bread.y = Math.random() * 560;
+    }
+
     function updateGame() {
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
         drawDuck();
@@ -77,14 +90,7 @@ document.addEventListener("DOMContentLoaded", function () {
         guards.forEach(guard => {
             if (checkCollision(duck, guard)) {
                 alert("Caught by security! Game Over.");
-                document.location.reload();
-            }
-        });
-
-        obstacles.forEach(obstacle => {
-            if (checkCollision(duck, obstacle)) {
-                duck.x -= duck.speed;
-                duck.y -= duck.speed;
+                restartGame();
             }
         });
     }
@@ -130,7 +136,7 @@ document.addEventListener("DOMContentLoaded", function () {
         timeLeft--;
         if (timeLeft <= 0) {
             alert("Time’s up! Game Over.");
-            document.location.reload();
+            restartGame();
         }
     }, 1000);
 
