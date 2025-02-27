@@ -1,444 +1,787 @@
- Find the guard initialization code and reduce vision range
-guards = [
-    { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 120 }, // Reduced from 150
-    { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 130 }, // Reduced from 170
-    { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 125 } // Reduced from 160
-];
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Heist</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #333;
+            font-family: Arial, sans-serif;
+        }
+        
+        #duck-heist-game {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            max-height: 100vh;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        canvas {
+            border: 4px solid #222;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            background-color: #4a752c;
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        
+        #restart-btn {
+            margin-top: 15px;
+            padding: 12px 24px;
+            font-size: 20px;
+            background-color: #ffcc00;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            font-weight: bold;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        #restart-btn:hover {
+            background-color: #ffdd33;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        #instructions {
+            color: white;
+            margin-bottom: 20px;
+            max-width: 800px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="instructions">
+            <h2>Duck Heist</h2>
+            <p>Use arrow keys to move. Collect bread while avoiding guards. Hide behind obstacles to stay undetected.</p>
+            <p>Collect power-ups: Yellow = Speed Boost, Purple = Invisibility</p>
+        </div>
+        
+        <div id="duck-heist-game">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <div id="game-over">
+                <h2 id="game-result">Game Over</h2>
+                <p id="final-score">Score: 0</p>
+                <button id="restart-btn">Play Again</button>
+            </div>
+        </div>
+    </div>
 
-// Improve the canSeePlayer function to properly handle hiding behind obstacles
-function canSeePlayer(guard) {
-    const dx = duck.x + (duck.width / 2) - (guard.x + (guard.width / 2));
-    const dy = duck.y + (duck.height / 2) - (guard.y + (guard.height / 2));
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // Check if player is within vision range
-    if (distance <= guard.visionRange) {
-        // Improved line of sight check using ray casting
-        const steps = 10; // Number of points to check along the line
-        for (let i = 1; i <= steps; i++) {
-            const checkX = guard.x + (guard.width / 2) + (dx * i / steps);
-            const checkY = guard.y + (guard.height / 2) + (dy * i / steps);
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const CANVAS_WIDTH = canvas.width;
+        const CANVAS_HEIGHT = canvas.height;
+        
+        // Game state
+        let gameOver = false;
+        let score = 0;
+        let keys = {};
+        
+        // Duck setup
+        const duck = {
+            x: 50,
+            y: 50,
+            width: 30,
+            height: 30,
+            speed: 4,
+            originalSpeed: 4,
+            isInvisible: false
+        };
+        
+        // Bread setup
+        let bread = {
+            x: 400,
+            y: 300,
+            width: 20,
+            height: 20
+        };
+        
+        // Obstacles setup
+        let obstacles = [];
+        
+        // Guards setup
+        let guards = [];
+        
+        // Power-ups
+        let powerUps = [];
+        
+        // Images
+        const duckImg = new Image();
+        duckImg.src = '/api/placeholder/30/30';
+        const breadImg = new Image();
+        breadImg.src = '/api/placeholder/20/20';
+        const guardImg = new Image();
+        guardImg.src = '/api/placeholder/40/40';
+        const useDuckImage = true;
+        
+        // Get random position that doesn't collide with obstacles
+        function getValidPosition(obj) {
+            let newPos = {
+                x: Math.random() * (CANVAS_WIDTH - obj.width),
+                y: Math.random() * (CANVAS_HEIGHT - obj.height)
+            };
             
-            // Check if this point intersects with any obstacle
-            const intersectsObstacle = obstacles.some(obstacle => 
-                checkX >= obstacle.x && 
-                checkX <= obstacle.x + obstacle.width && 
-                checkY >= obstacle.y && 
-                checkY <= obstacle.y + obstacle.height
-            );
+            // Keep trying until we find a valid position
+            let attempts = 0;
+            while (isPositionInvalid(newPos, obj) && attempts < 100) {
+                newPos = {
+                    x: Math.random() * (CANVAS_WIDTH - obj.width),
+                    y: Math.random() * (CANVAS_HEIGHT - obj.height)
+                };
+                attempts++;
+            }
             
-            if (intersectsObstacle) {
-                // Vision is blocked by an obstacle
-                return false;
+            return newPos;
+        }
+        
+        function isPositionInvalid(pos, obj) {
+            // Check if position collides with any obstacle
+            const tempObj = {
+                x: pos.x,
+                y: pos.y,
+                width: obj.width,
+                height: obj.height
+            };
+            
+            // Check collision with duck
+            if (checkCollision(tempObj, duck)) {
+                return true;
+            }
+            
+            // Check collision with obstacles
+            for (const obstacle of obstacles) {
+                if (checkCollision(tempObj, obstacle)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Check if two objects are colliding
+        function checkCollision(obj1, obj2) {
+            return obj1.x < obj2.x + obj2.width &&
+                   obj1.x + obj1.width > obj2.x &&
+                   obj1.y < obj2.y + obj2.height &&
+                   obj1.y + obj1.height > obj2.y;
+        }
+        
+        // Initialize power-ups
+        function initializePowerUps() {
+            powerUps = [
+                { 
+                    x: 200, 
+                    y: 150, 
+                    width: 25, 
+                    height: 25, 
+                    type: "speed", 
+                    active: false, 
+                    duration: 7, // seconds
+                    timeLeft: 0 
+                },
+                { 
+                    x: 600, 
+                    y: 400, 
+                    width: 25, 
+                    height: 25, 
+                    type: "invisible", 
+                    active: false, 
+                    duration: 5, // seconds
+                    timeLeft: 0 
+                }
+            ];
+            
+            // Reposition power-ups to valid locations
+            powerUps.forEach(powerUp => {
+                const validPos = getValidPosition(powerUp);
+                powerUp.x = validPos.x;
+                powerUp.y = validPos.y;
+            });
+        }
+        
+        // Initialize the game
+        function initializeGame() {
+            // Reset game state
+            gameOver = false;
+            score = 0;
+            
+            // Reset duck position
+            duck.x = 50;
+            duck.y = 50;
+            duck.speed = 4;
+            duck.originalSpeed = 4;
+            duck.isInvisible = false;
+            
+            // Hide game over screen
+            document.getElementById('game-over').style.display = 'none';
+            
+            // Initialize obstacles
+            obstacles = [
+                { x: 400, y: 200, width: 50, height: 50, type: 0 },
+                { x: 200, y: 400, width: 80, height: 30, type: 1 },
+                { x: 600, y: 100, width: 60, height: 60, type: 2 },
+                { x: 300, y: 300, width: 40, height: 70, type: 0 },
+                { x: 700, y: 300, width: 30, height: 100, type: 1 }
+            ];
+            
+            // Initialize guards
+            guards = [
+                { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 120 },
+                { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 130 },
+                { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 125 }
+            ];
+            
+            // Get valid position for bread
+            const validBreadPos = getValidPosition(bread);
+            bread.x = validBreadPos.x;
+            bread.y = validBreadPos.y;
+            
+            // Initialize power-ups
+            initializePowerUps();
+        }
+        
+        // Draw the background
+        function drawBackground() {
+            ctx.fillStyle = "#4a752c";
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            // Add some decorative grass patterns
+            ctx.fillStyle = "#3d6424";
+            for (let i = 0; i < 100; i++) {
+                const x = Math.random() * CANVAS_WIDTH;
+                const y = Math.random() * CANVAS_HEIGHT;
+                const size = 5 + Math.random() * 10;
+                ctx.fillRect(x, y, size, size);
             }
         }
-        return true; // No obstacles blocking line of sight
-    }
-    return false;
-}
-
-// Enhance the drawObstacles function for better-looking barriers
-function drawObstacles() {
-    obstacles.forEach((obstacle, index) => {
-        // Create more interesting obstacle designs
-        // Different types of obstacles with unique appearances
-        const type = obstacle.type || (index % 3);
         
-        switch(type) {
-            case 0: // Wooden crate
-                // Base box
-                ctx.fillStyle = "#8B4513";
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        // Draw obstacles
+        function drawObstacles() {
+            obstacles.forEach((obstacle, index) => {
+                // Create more interesting obstacle designs
+                // Different types of obstacles with unique appearances
+                const type = obstacle.type || (index % 3);
                 
-                // Wood grain
-                ctx.strokeStyle = "#5D2906";
-                ctx.lineWidth = 2;
-                
-                // Horizontal planks
-                const plankHeight = obstacle.height / 3;
-                for (let i = 0; i < 3; i++) {
-                    ctx.strokeRect(
-                        obstacle.x, 
-                        obstacle.y + i * plankHeight, 
-                        obstacle.width, 
-                        plankHeight
-                    );
-                }
-                
-                // Nails
-                ctx.fillStyle = "#A9A9A9";
-                const nailPositions = [
-                    {x: obstacle.x + 10, y: obstacle.y + 5},
-                    {x: obstacle.x + obstacle.width - 10, y: obstacle.y + 5},
-                    {x: obstacle.x + 10, y: obstacle.y + obstacle.height - 5},
-                    {x: obstacle.x + obstacle.width - 10, y: obstacle.y + obstacle.height - 5}
-                ];
-                
-                nailPositions.forEach(pos => {
-                    ctx.beginPath();
-                    ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                });
-                break;
-                
-            case 1: // Stone wall
-                // Base rectangle
-                ctx.fillStyle = "#808080";
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                
-                // Stone pattern
-                const stoneSize = 10;
-                ctx.strokeStyle = "#696969";
-                ctx.lineWidth = 1;
-                
-                for (let x = 0; x < obstacle.width; x += stoneSize) {
-                    for (let y = 0; y < obstacle.height; y += stoneSize) {
-                        // Random offset for natural look
-                        const offsetX = Math.random() * 2;
-                        const offsetY = Math.random() * 2;
+                switch(type) {
+                    case 0: // Wooden crate
+                        // Base box
+                        ctx.fillStyle = "#8B4513";
+                        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
                         
-                        // Draw stone
-                        ctx.fillStyle = `rgb(${120 + Math.random() * 30}, ${120 + Math.random() * 30}, ${120 + Math.random() * 30})`;
-                        ctx.fillRect(
-                            obstacle.x + x + offsetX, 
-                            obstacle.y + y + offsetY, 
-                            stoneSize - 1, 
-                            stoneSize - 1
-                        );
-                    }
+                        // Wood grain
+                        ctx.strokeStyle = "#5D2906";
+                        ctx.lineWidth = 2;
+                        
+                        // Horizontal planks
+                        const plankHeight = obstacle.height / 3;
+                        for (let i = 0; i < 3; i++) {
+                            ctx.strokeRect(
+                                obstacle.x, 
+                                obstacle.y + i * plankHeight, 
+                                obstacle.width, 
+                                plankHeight
+                            );
+                        }
+                        
+                        // Nails
+                        ctx.fillStyle = "#A9A9A9";
+                        const nailPositions = [
+                            {x: obstacle.x + 10, y: obstacle.y + 5},
+                            {x: obstacle.x + obstacle.width - 10, y: obstacle.y + 5},
+                            {x: obstacle.x + 10, y: obstacle.y + obstacle.height - 5},
+                            {x: obstacle.x + obstacle.width - 10, y: obstacle.y + obstacle.height - 5}
+                        ];
+                        
+                        nailPositions.forEach(pos => {
+                            ctx.beginPath();
+                            ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                        break;
+                        
+                    case 1: // Stone wall
+                        // Base rectangle
+                        ctx.fillStyle = "#808080";
+                        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                        
+                        // Stone pattern
+                        const stoneSize = 10;
+                        ctx.strokeStyle = "#696969";
+                        ctx.lineWidth = 1;
+                        
+                        for (let x = 0; x < obstacle.width; x += stoneSize) {
+                            for (let y = 0; y < obstacle.height; y += stoneSize) {
+                                // Random offset for natural look
+                                const offsetX = Math.random() * 2;
+                                const offsetY = Math.random() * 2;
+                                
+                                // Draw stone
+                                ctx.fillStyle = `rgb(${120 + Math.random() * 30}, ${120 + Math.random() * 30}, ${120 + Math.random() * 30})`;
+                                ctx.fillRect(
+                                    obstacle.x + x + offsetX, 
+                                    obstacle.y + y + offsetY, 
+                                    stoneSize - 1, 
+                                    stoneSize - 1
+                                );
+                            }
+                        }
+                        break;
+                        
+                    case 2: // Metal barrier
+                        // Base rectangle
+                        ctx.fillStyle = "#515151";
+                        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                        
+                        // Metallic look
+                        ctx.fillStyle = "#626262";
+                        ctx.fillRect(obstacle.x + 3, obstacle.y + 3, obstacle.width - 6, obstacle.height - 6);
+                        
+                        // Rivets
+                        ctx.fillStyle = "#7D7D7D";
+                        const rivetSize = 4;
+                        const rivetOffset = 5;
+                        
+                        // Corner rivets
+                        [
+                            {x: rivetOffset, y: rivetOffset},
+                            {x: obstacle.width - rivetOffset - rivetSize, y: rivetOffset},
+                            {x: rivetOffset, y: obstacle.height - rivetOffset - rivetSize},
+                            {x: obstacle.width - rivetOffset - rivetSize, y: obstacle.height - rivetOffset - rivetSize}
+                        ].forEach(pos => {
+                            ctx.fillRect(
+                                obstacle.x + pos.x, 
+                                obstacle.y + pos.y, 
+                                rivetSize, 
+                                rivetSize
+                            );
+                        });
+                        
+                        // Highlight
+                        ctx.strokeStyle = "#AAAAAA";
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(obstacle.x + 2, obstacle.y + 2);
+                        ctx.lineTo(obstacle.x + obstacle.width - 2, obstacle.y + 2);
+                        ctx.stroke();
+                        break;
                 }
-                break;
                 
-            case 2: // Metal barrier
-                // Base rectangle
-                ctx.fillStyle = "#515151";
-                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                
-                // Metallic look
-                ctx.fillStyle = "#626262";
-                ctx.fillRect(obstacle.x + 3, obstacle.y + 3, obstacle.width - 6, obstacle.height - 6);
-                
-                // Rivets
-                ctx.fillStyle = "#7D7D7D";
-                const rivetSize = 4;
-                const rivetOffset = 5;
-                
-                // Corner rivets
-                [
-                    {x: rivetOffset, y: rivetOffset},
-                    {x: obstacle.width - rivetOffset - rivetSize, y: rivetOffset},
-                    {x: rivetOffset, y: obstacle.height - rivetOffset - rivetSize},
-                    {x: obstacle.width - rivetOffset - rivetSize, y: obstacle.height - rivetOffset - rivetSize}
-                ].forEach(pos => {
-                    ctx.fillRect(
-                        obstacle.x + pos.x, 
-                        obstacle.y + pos.y, 
-                        rivetSize, 
-                        rivetSize
-                    );
-                });
-                
-                // Highlight
-                ctx.strokeStyle = "#AAAAAA";
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(obstacle.x + 2, obstacle.y + 2);
-                ctx.lineTo(obstacle.x + obstacle.width - 2, obstacle.y + 2);
-                ctx.stroke();
-                break;
+                // Add shadow for all obstacles
+                ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+                ctx.fillRect(obstacle.x + 5, obstacle.y + obstacle.height, obstacle.width, 5);
+            });
         }
         
-        // Add shadow for all obstacles
-        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-        ctx.fillRect(obstacle.x + 5, obstacle.y + obstacle.height, obstacle.width, 5);
-    });
-}
-
-// Add a stealth indicator when duck is hidden
-function drawDuck() {
-    const isHidden = !guards.some(guard => guard.canSeePlayer);
-    
-    if (useDuckImage && duckImg.complete) {
-        // Adjust transparency when hidden
-        ctx.globalAlpha = isHidden ? 0.7 : 1;
-        ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
-        ctx.globalAlpha = 1;
-    } else {
-        ctx.fillStyle = isHidden ? "rgba(255, 255, 0, 0.7)" : "yellow";
-        ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
-    }
-    
-    // Add stealth indicator
-    if (isHidden) {
-        ctx.fillStyle = "rgba(100, 255, 100, 0.7)";
-        ctx.beginPath();
-        ctx.arc(duck.x + duck.width - 5, duck.y + 5, 5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-// Add power-ups to the game
-let powerUps = [];
-
-function initializePowerUps() {
-    powerUps = [
-        { 
-            x: 200, 
-            y: 150, 
-            width: 25, 
-            height: 25, 
-            type: "speed", 
-            active: false, 
-            duration: 7, // seconds
-            timeLeft: 0 
-        },
-        { 
-            x: 600, 
-            y: 400, 
-            width: 25, 
-            height: 25, 
-            type: "invisible", 
-            active: false, 
-            duration: 5, // seconds
-            timeLeft: 0 
-        }
-    ];
-    
-    // Reposition power-ups to valid locations
-    powerUps.forEach(powerUp => {
-        const validPos = getValidPosition(powerUp);
-        powerUp.x = validPos.x;
-        powerUp.y = validPos.y;
-    });
-}
-
-function drawPowerUps() {
-    powerUps.forEach(powerUp => {
-        if (!powerUp.active) {
-            ctx.save();
-            
-            // Add pulsing effect
-            const pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
-            
-            // Draw power-up based on type
-            if (powerUp.type === "speed") {
-                // Speed boost - lightning bolt
-                ctx.fillStyle = "#FFD700";
-                ctx.beginPath();
-                ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, 
-                      powerUp.width/2 * pulse, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Lightning symbol
-                ctx.fillStyle = "#FFF";
-                ctx.beginPath();
-                ctx.moveTo(powerUp.x + 10, powerUp.y + 5);
-                ctx.lineTo(powerUp.x + 15, powerUp.y + 12);
-                ctx.lineTo(powerUp.x + 11, powerUp.y + 13);
-                ctx.lineTo(powerUp.x + 16, powerUp.y + 22);
-                ctx.lineTo(powerUp.x + 17, powerUp.y + 19);
-                ctx.lineTo(powerUp.x + 20, powerUp.y + 19);
-                ctx.lineTo(powerUp.x + 10, powerUp.y + 5);
-                ctx.fill();
-            } else if (powerUp.type === "invisible") {
-                // Invisibility - eye symbol
-                ctx.fillStyle = "#9370DB";
-                ctx.beginPath();
-                ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, 
-                      powerUp.width/2 * pulse, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Eye symbol
-                ctx.fillStyle = "#FFF";
-                ctx.beginPath();
-                ctx.ellipse(
-                    powerUp.x + powerUp.width/2, 
-                    powerUp.y + powerUp.height/2,
-                    8, 5, 0, 0, Math.PI * 2
-                );
-                ctx.fill();
-                
-                ctx.fillStyle = "#000";
-                ctx.beginPath();
-                ctx.arc(
-                    powerUp.x + powerUp.width/2, 
-                    powerUp.y + powerUp.height/2,
-                    3, 0, Math.PI * 2
-                );
-                ctx.fill();
-            }
-            
-            ctx.restore();
-        }
-    });
-}
-
-function handlePowerUpCollisions() {
-    powerUps.forEach(powerUp => {
-        if (!powerUp.active && checkCollision(duck, powerUp)) {
-            // Activate power-up
-            powerUp.active = true;
-            powerUp.timeLeft = powerUp.duration;
-            
-            // Apply power-up effect
-            if (powerUp.type === "speed") {
-                duck.originalSpeed = duck.speed;
-                duck.speed = duck.speed * 1.6;
-            } else if (powerUp.type === "invisible") {
-                duck.isInvisible = true;
-            }
-            
-            // Start countdown timer
-            const powerUpInterval = setInterval(() => {
-                if (gameOver || powerUp.timeLeft <= 0) {
-                    // Deactivate power-up
+        // Draw power-ups
+        function drawPowerUps() {
+            powerUps.forEach(powerUp => {
+                if (!powerUp.active) {
+                    ctx.save();
+                    
+                    // Add pulsing effect
+                    const pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
+                    
+                    // Draw power-up based on type
                     if (powerUp.type === "speed") {
-                        duck.speed = duck.originalSpeed;
+                        // Speed boost - lightning bolt
+                        ctx.fillStyle = "#FFD700";
+                        ctx.beginPath();
+                        ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, 
+                              powerUp.width/2 * pulse, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Lightning symbol
+                        ctx.fillStyle = "#FFF";
+                        ctx.beginPath();
+                        ctx.moveTo(powerUp.x + 10, powerUp.y + 5);
+                        ctx.lineTo(powerUp.x + 15, powerUp.y + 12);
+                        ctx.lineTo(powerUp.x + 11, powerUp.y + 13);
+                        ctx.lineTo(powerUp.x + 16, powerUp.y + 22);
+                        ctx.lineTo(powerUp.x + 17, powerUp.y + 19);
+                        ctx.lineTo(powerUp.x + 20, powerUp.y + 19);
+                        ctx.lineTo(powerUp.x + 10, powerUp.y + 5);
+                        ctx.fill();
                     } else if (powerUp.type === "invisible") {
-                        duck.isInvisible = false;
+                        // Invisibility - eye symbol
+                        ctx.fillStyle = "#9370DB";
+                        ctx.beginPath();
+                        ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, 
+                              powerUp.width/2 * pulse, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Eye symbol
+                        ctx.fillStyle = "#FFF";
+                        ctx.beginPath();
+                        ctx.ellipse(
+                            powerUp.x + powerUp.width/2, 
+                            powerUp.y + powerUp.height/2,
+                            8, 5, 0, 0, Math.PI * 2
+                        );
+                        ctx.fill();
+                        
+                        ctx.fillStyle = "#000";
+                        ctx.beginPath();
+                        ctx.arc(
+                            powerUp.x + powerUp.width/2, 
+                            powerUp.y + powerUp.height/2,
+                            3, 0, Math.PI * 2
+                        );
+                        ctx.fill();
                     }
                     
-                    // Reset power-up
-                    powerUp.active = false;
-                    const validPos = getValidPosition(powerUp);
-                    powerUp.x = validPos.x;
-                    powerUp.y = validPos.y;
-                    
-                    clearInterval(powerUpInterval);
-                } else {
-                    powerUp.timeLeft--;
+                    ctx.restore();
                 }
-            }, 1000);
+            });
         }
-    });
-}
-
-// Update the canSeePlayer function to respect invisibility power-up
-function canSeePlayer(guard) {
-    // If duck has invisibility power-up, guards can't see
-    if (duck.isInvisible) return false;
-    
-    const dx = duck.x + (duck.width / 2) - (guard.x + (guard.width / 2));
-    const dy = duck.y + (duck.height / 2) - (guard.y + (guard.height / 2));
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // Rest of the function remains the same
-    // ...
-}
-
-// Update the updateGame function to include power-ups
-function updateGame() {
-    if (gameOver) return;
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    drawBackground();
-    handleMovement();
-    moveGuards();
-    handleCollisions();
-    handlePowerUpCollisions(); // Add this line
-    
-    drawObstacles();
-    drawBread();
-    drawPowerUps(); // Add this line
-    drawGuards();
-    drawDuck();
-    drawGameInfo();
-    drawPowerUpStatus(); // Add this line
-}
-
-// Draw power-up status indicators
-function drawPowerUpStatus() {
-    let y = 80; // Starting y position
-    
-    powerUps.forEach(powerUp => {
-        if (powerUp.active) {
-            // Draw power-up status
-            ctx.fillStyle = "white";
-            ctx.font = "bold 16px Arial";
+        
+        // Draw the duck
+        function drawDuck() {
+            const isHidden = !guards.some(guard => guard.canSeePlayer);
             
-            if (powerUp.type === "speed") {
-                ctx.fillText(`Speed Boost: ${powerUp.timeLeft}s`, 20, y);
-                // Draw small icon
-                ctx.fillStyle = "#FFD700";
+            if (useDuckImage && duckImg.complete) {
+                // Adjust transparency when hidden
+                ctx.globalAlpha = isHidden ? 0.7 : 1;
+                ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
+                ctx.globalAlpha = 1;
+            } else {
+                ctx.fillStyle = isHidden ? "rgba(255, 255, 0, 0.7)" : "yellow";
+                ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
+                
+                // Add eyes
+                ctx.fillStyle = "black";
                 ctx.beginPath();
-                ctx.moveTo(150, y - 5);
-                ctx.lineTo(155, y - 10);
-                ctx.lineTo(151, y - 11);
-                ctx.lineTo(156, y);
-                ctx.lineTo(157, y - 3);
-                ctx.lineTo(160, y - 3);
-                ctx.lineTo(150, y - 5);
+                ctx.arc(duck.x + duck.width * 0.7, duck.y + duck.height * 0.3, 3, 0, Math.PI * 2);
                 ctx.fill();
-            } else if (powerUp.type === "invisible") {
-                ctx.fillText(`Invisibility: ${powerUp.timeLeft}s`, 20, y);
-                // Draw small icon
-                ctx.fillStyle = "#9370DB";
+                
+                // Add beak
+                ctx.fillStyle = "orange";
                 ctx.beginPath();
-                ctx.arc(155, y - 5, 5, 0, Math.PI * 2);
+                ctx.moveTo(duck.x + duck.width, duck.y + duck.height * 0.5);
+                ctx.lineTo(duck.x + duck.width + 10, duck.y + duck.height * 0.5);
+                ctx.lineTo(duck.x + duck.width, duck.y + duck.height * 0.7);
                 ctx.fill();
             }
             
-            y += 25; // Increment y position for next status
+            // Add stealth indicator
+            if (isHidden) {
+                ctx.fillStyle = "rgba(100, 255, 100, 0.7)";
+                ctx.beginPath();
+                ctx.arc(duck.x + duck.width - 5, duck.y + 5, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
-    });
-}
-
-// Initialize power-ups at game start
-function initializeGame() {
-    bread = getValidPosition(bread);
-    obstacles = [
-        { x: 400, y: 200, width: 50, height: 50, type: 0 },
-        { x: 200, y: 400, width: 80, height: 30, type: 1 },
-        { x: 600, y: 100, width: 60, height: 60, type: 2 },
-        { x: 300, y: 300, width: 40, height: 70, type: 0 },
-        { x: 700, y: 300, width: 30, height: 100, type: 1 }
-    ];
-    guards = [
-        { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 120 },
-        { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 130 },
-        { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 125 }
-    ];
-    initializePowerUps(); // Add this line
-}
-
-// Update the CSS to include a better game styling
-// Add this to your style section:
-/*
-#duck-heist-game {
-    position: relative;
-    width: 100%;
-    max-width: 800px;
-    max-height: 100vh;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-canvas {
-    border: 4px solid #222;
-    border-radius: 8px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    width: 100%;
-    height: auto;
-    display: block;
-    margin: 0 auto;
-}
-
-#restart-btn {
-    padding: 12px 24px;
-    font-size: 20px;
-    background-color: #ffcc00;
-    color: #333;
-    border: none;
-    border-radius: 6px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    font-weight: bold;
-    transition: all 0.2s ease;
-}
-
-#restart-btn:hover {
-    background-color: #ffdd33;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-}
-*/
+        
+        // Draw the bread
+        function drawBread() {
+            if (breadImg.complete) {
+                ctx.drawImage(breadImg, bread.x, bread.y, bread.width, bread.height);
+            } else {
+                ctx.fillStyle = "#daa520";
+                ctx.fillRect(bread.x, bread.y, bread.width, bread.height);
+            }
+        }
+        
+        // Draw the guards and their vision cones
+        function drawGuards() {
+            guards.forEach(guard => {
+                // Update canSeePlayer status
+                guard.canSeePlayer = canSeePlayer(guard);
+                
+                // Draw vision cone
+                ctx.beginPath();
+                ctx.moveTo(guard.x + guard.width / 2, guard.y + guard.height / 2);
+                ctx.arc(
+                    guard.x + guard.width / 2, 
+                    guard.y + guard.height / 2, 
+                    guard.visionRange, 
+                    0, Math.PI * 2
+                );
+                ctx.fillStyle = guard.canSeePlayer ? "rgba(255, 0, 0, 0.2)" : "rgba(200, 200, 200, 0.1)";
+                ctx.fill();
+                
+                // Draw guard
+                if (guardImg.complete) {
+                    ctx.drawImage(guardImg, guard.x, guard.y, guard.width, guard.height);
+                } else {
+                    ctx.fillStyle = guard.canSeePlayer ? "red" : "blue";
+                    ctx.fillRect(guard.x, guard.y, guard.width, guard.height);
+                    
+                    // Draw eyes
+                    ctx.fillStyle = "white";
+                    ctx.beginPath();
+                    ctx.arc(guard.x + 10, guard.y + 15, 5, 0, Math.PI * 2);
+                    ctx.arc(guard.x + 30, guard.y + 15, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = "black";
+                    ctx.beginPath();
+                    ctx.arc(guard.x + 10, guard.y + 15, 2, 0, Math.PI * 2);
+                    ctx.arc(guard.x + 30, guard.y + 15, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+        
+        // Draw game information (score, etc.)
+        function drawGameInfo() {
+            ctx.fillStyle = "white";
+            ctx.font = "bold 24px Arial";
+            ctx.fillText(`Score: ${score}`, 20, 40);
+        }
+        
+        // Draw power-up status indicators
+        function drawPowerUpStatus() {
+            let y = 80; // Starting y position
+            
+            powerUps.forEach(powerUp => {
+                if (powerUp.active) {
+                    // Draw power-up status
+                    ctx.fillStyle = "white";
+                    ctx.font = "bold 16px Arial";
+                    
+                    if (powerUp.type === "speed") {
+                        ctx.fillText(`Speed Boost: ${powerUp.timeLeft}s`, 20, y);
+                        // Draw small icon
+                        ctx.fillStyle = "#FFD700";
+                        ctx.beginPath();
+                        ctx.moveTo(150, y - 5);
+                        ctx.lineTo(155, y - 10);
+                        ctx.lineTo(151, y - 11);
+                        ctx.lineTo(156, y);
+                        ctx.lineTo(157, y - 3);
+                        ctx.lineTo(160, y - 3);
+                        ctx.lineTo(150, y - 5);
+                        ctx.fill();
+                    } else if (powerUp.type === "invisible") {
+                        ctx.fillText(`Invisibility: ${powerUp.timeLeft}s`, 20, y);
+                        // Draw small icon
+                        ctx.fillStyle = "#9370DB";
+                        ctx.beginPath();
+                        ctx.arc(155, y - 5, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    y += 25; // Increment y position for next status
+                }
+            });
+        }
+        
+        // Move the duck based on keyboard input
+        function handleMovement() {
+            // Horizontal movement
+            if (keys["ArrowLeft"] || keys["a"]) {
+                duck.x -= duck.speed;
+            }
+            if (keys["ArrowRight"] || keys["d"]) {
+                duck.x += duck.speed;
+            }
+            
+            // Vertical movement
+            if (keys["ArrowUp"] || keys["w"]) {
+                duck.y -= duck.speed;
+            }
+            if (keys["ArrowDown"] || keys["s"]) {
+                duck.y += duck.speed;
+            }
+            
+            // Keep duck within canvas boundaries
+            if (duck.x < 0) duck.x = 0;
+            if (duck.x + duck.width > CANVAS_WIDTH) duck.x = CANVAS_WIDTH - duck.width;
+            if (duck.y < 0) duck.y = 0;
+            if (duck.y + duck.height > CANVAS_HEIGHT) duck.y = CANVAS_HEIGHT - duck.height;
+            
+            // Check for obstacle collisions
+            obstacles.forEach(obstacle => {
+                if (checkCollision(duck, obstacle)) {
+                    // Simple collision resolution - push back
+                    const duckCenter = {
+                        x: duck.x + duck.width / 2,
+                        y: duck.y + duck.height / 2
+                    };
+                    const obstacleCenter = {
+                        x: obstacle.x + obstacle.width / 2,
+                        y: obstacle.y + obstacle.height / 2
+                    };
+                    
+                    // Push back based on collision direction
+                    if (duckCenter.x < obstacleCenter.x) {
+                        duck.x = obstacle.x - duck.width;
+                    } else if (duckCenter.x > obstacleCenter.x) {
+                        duck.x = obstacle.x + obstacle.width;
+                    }
+                    
+                    if (duckCenter.y < obstacleCenter.y) {
+                        duck.y = obstacle.y - duck.height;
+                    } else if (duckCenter.y > obstacleCenter.y) {
+                        duck.y = obstacle.y + obstacle.height;
+                    }
+                }
+            });
+        }
+        
+        // Move the guards
+        function moveGuards() {
+            guards.forEach(guard => {
+                if (guard.canSeePlayer) {
+                    // Chase the player
+                    const dx = duck.x - guard.x;
+                    const dy = duck.y - guard.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 5) {
+                        guard.x += (dx / distance) * guard.speed;
+                        guard.y += (dy / distance) * guard.speed;
+                    }
+                } else {
+                    // Random patrol movement
+                    if (Math.random() < 0.02) {
+                        guard.dirX = Math.random() * 2 - 1;
+                        guard.dirY = Math.random() * 2 - 1;
+                        
+                        // Normalize direction vector
+                        const length = Math.sqrt(guard.dirX * guard.dirX + guard.dirY * guard.dirY);
+                        guard.dirX /= length;
+                        guard.dirY /= length;
+                    }
+                    
+                    // Move guard in current direction
+                    if (guard.dirX && guard.dirY) {
+                        const newX = guard.x + guard.dirX * guard.speed;
+                        const newY = guard.y + guard.dirY * guard.speed;
+                        
+                        // Check if new position is valid
+                        if (newX >= 0 && newX + guard.width <= CANVAS_WIDTH) {
+                            guard.x = newX;
+                        } else {
+                            guard.dirX *= -1;
+                        }
+                        
+                        if (newY >= 0 && newY + guard.height <= CANVAS_HEIGHT) {
+                            guard.y = newY;
+                        } else {
+                            guard.dirY *= -1;
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Check if the duck can be seen by a guard
+        function canSeePlayer(guard) {
+            // If duck has invisibility power-up, guards can't see
+            if (duck.isInvisible) return false;
+            
+            const dx = duck.x + (duck.width / 2) - (guard.x + (guard.width / 2));
+            const dy = duck.y + (duck.height / 2) - (guard.y + (guard.height / 2));
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Check if player is within vision range
+            if (distance <= guard.visionRange) {
+                // Improved line of sight check using ray casting
+                const steps = 10; // Number of points to check along the line
+                for (let i = 1; i <= steps; i++) {
+                    const checkX = guard.x + (guard.width / 2) + (dx * i / steps);
+                    const checkY = guard.y + (guard.height / 2) + (dy * i / steps);
+                    
+                    // Check if this point intersects with any obstacle
+                    const intersectsObstacle = obstacles.some(obstacle => 
+                        checkX >= obstacle.x && 
+                        checkX <= obstacle.x + obstacle.width && 
+                        checkY >= obstacle.y && 
+                        checkY <= obstacle.y + obstacle.height
+                    );
+                    
+                    if (intersectsObstacle) {
+                        // Vision is blocked by an obstacle
+                        return false;
+                    }
+                }
+                return true; // No obstacles blocking line of sight
+            }
+            return false;
+        }
+        
+        // Handle collisions between objects
+        function handleCollisions() {
+            // Check for collision with bread
+            if (checkCollision(duck, bread)) {
+                // Increase score
+                score++;
+                
+                // Reposition bread
+                const validPos = getValidPosition(bread);
+                bread.x = validPos.x;
+                bread.y = validPos.y;
+            }
+            
+            // Check for collision with guards
+            guards.forEach(guard => {
+                if (checkCollision(duck, guard) && guard.canSeePlayer) {
+                    // Game over - caught by guard
+                    endGame(false);
+                }
+            });
+        }
+        
+        // Handle power-up collisions
+        function handlePowerUpCollisions() {
+            powerUps.forEach(powerUp => {
+                if (!powerUp.active && checkCollision(duck, powerUp)) {
+                    // Activate power-up
+                    powerUp.active = true;
+                    powerUp.timeLeft = powerUp.duration;
+                    
+                    // Apply power-up effect
+                    if (powerUp.type === "speed") {
+                        duck.originalSpeed = duck.speed;
+                        duck.speed = duck.speed * 1.6;
+                    } else if (powerUp.type === "invisible") {
+                        duck.isInvisible = true;
+                    }
+                    
+                    // Start countdown timer
+                    const powerUpInterval = setInterval(() => {
+                        if (gameOver || powerUp.timeLeft <= 0) {
+                            // Deactivate power-up
+                            if (powerUp.type === "speed") {
+                                duck.speed = duck.originalSpeed;
+                            } else if (powerUp.type === "invisible") {
+                                duck.isInvisible = false;
+                            }
+                            
+                            // Reset power-up
+                            powerUp.active = false;
+                            const validPos = getValidPosition(powerUp);
+                            powerUp.x = validPos.x;
+                            powerUp.y
