@@ -1,17 +1,24 @@
 document.addEventListener("DOMContentLoaded", function () {
+    const gameContainer = document.getElementById("duck-heist-game");
+    if (!gameContainer) {
+        console.error("Error: 'duck-heist-game' div not found!");
+        return;
+    }
+
+    // Create Canvas
     const gameCanvas = document.createElement("canvas");
     const ctx = gameCanvas.getContext("2d");
-    document.getElementById("duck-heist-game").appendChild(gameCanvas);
-    gameCanvas.width = window.innerWidth * 0.9;
-    gameCanvas.height = window.innerHeight * 0.7;
+    gameCanvas.width = 800;
+    gameCanvas.height = 600;
+    gameContainer.appendChild(gameCanvas);
 
+    // Game Objects
     let duck = { x: 50, y: 300, width: 40, height: 40, speed: 5 };
-    let bread = { x: Math.random() * (gameCanvas.width - 20), y: Math.random() * (gameCanvas.height - 20), width: 20, height: 20 };
-    let guards = [{ x: gameCanvas.width - 100, y: gameCanvas.height / 2, width: 40, height: 40, speed: 2 }];
-    let obstacles = [{ x: gameCanvas.width / 2, y: gameCanvas.height / 3, width: 50, height: 50 }];
+    let bread = { x: Math.random() * 760, y: Math.random() * 560, width: 20, height: 20 };
+    let guards = [{ x: 600, y: 300, width: 40, height: 40, speed: 2 }];
+    let obstacles = [{ x: 400, y: 200, width: 50, height: 50 }];
     let score = 0;
     let timeLeft = 60;
-    let keys = {};
 
     function drawDuck() {
         ctx.fillStyle = "yellow";
@@ -63,14 +70,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (checkCollision(duck, bread)) {
             score++;
-            bread.x = Math.random() * (gameCanvas.width - 20);
-            bread.y = Math.random() * (gameCanvas.height - 20);
+            bread.x = Math.random() * (gameCanvas.width - bread.width);
+            bread.y = Math.random() * (gameCanvas.height - bread.height);
         }
 
         guards.forEach(guard => {
             if (checkCollision(duck, guard)) {
                 alert("Caught by security! Game Over.");
                 document.location.reload();
+            }
+        });
+
+        obstacles.forEach(obstacle => {
+            if (checkCollision(duck, obstacle)) {
+                duck.x -= duck.speed;
+                duck.y -= duck.speed;
             }
         });
     }
@@ -80,21 +94,38 @@ document.addEventListener("DOMContentLoaded", function () {
         requestAnimationFrame(gameLoop);
     }
 
-    function handleMovement() {
-        if (keys["ArrowUp"] && duck.y > 0) duck.y -= duck.speed;
-        if (keys["ArrowDown"] && duck.y + duck.height < gameCanvas.height) duck.y += duck.speed;
-        if (keys["ArrowLeft"] && duck.x > 0) duck.x -= duck.speed;
-        if (keys["ArrowRight"] && duck.x + duck.width < gameCanvas.width) duck.x += duck.speed;
-    }
-
+    // Keyboard Controls
     window.addEventListener("keydown", function (event) {
-        keys[event.key] = true;
+        if (event.key === "ArrowUp" && duck.y > 0) duck.y -= duck.speed;
+        if (event.key === "ArrowDown" && duck.y < gameCanvas.height - duck.height) duck.y += duck.speed;
+        if (event.key === "ArrowLeft" && duck.x > 0) duck.x -= duck.speed;
+        if (event.key === "ArrowRight" && duck.x < gameCanvas.width - duck.width) duck.x += duck.speed;
     });
 
-    window.addEventListener("keyup", function (event) {
-        keys[event.key] = false;
+    // Touch Controls for Mobile
+    let touchStartX = 0, touchStartY = 0;
+
+    gameCanvas.addEventListener("touchstart", function (e) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
     });
 
+    gameCanvas.addEventListener("touchmove", function (e) {
+        let touchX = e.touches[0].clientX;
+        let touchY = e.touches[0].clientY;
+
+        if (touchX < touchStartX) duck.x -= duck.speed;  // Swipe left
+        if (touchX > touchStartX) duck.x += duck.speed;  // Swipe right
+        if (touchY < touchStartY) duck.y -= duck.speed;  // Swipe up
+        if (touchY > touchStartY) duck.y += duck.speed;  // Swipe down
+
+        touchStartX = touchX;
+        touchStartY = touchY;
+
+        e.preventDefault();
+    });
+
+    // Timer
     setInterval(() => {
         timeLeft--;
         if (timeLeft <= 0) {
@@ -103,11 +134,5 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }, 1000);
 
-    setInterval(handleMovement, 20);
     gameLoop();
-
-    window.addEventListener("resize", function () {
-        gameCanvas.width = window.innerWidth * 0.9;
-        gameCanvas.height = window.innerHeight * 0.7;
-    });
 });
