@@ -66,6 +66,617 @@
       <a href="game-quackventure.html">Play Quackventure</a>
     </div>
   </div>
+  <div class="game-container">
+    <!-- Game title and description -->
+    <h2>Quackventure: Infinite Pond</h2>
+    <p>Help the duck navigate through an infinite pond! Collect coins and see how far you can go.</p>
+    
+    <!-- Game area -->
+    <div class="game-area">
+        <div class="game-ui">
+            <div>Coins: <span id="coinCount">0</span></div>
+            <div>Distance: <span id="distanceCount">0</span>m</div>
+        </div>
+        <div class="instructions">
+            ↑ Jump | ↓ Duck | ← Move Left | → Move Right
+        </div>
+        <canvas id="gameCanvas"></canvas>
+    </div>
+    
+    <!-- Game controls/instructions -->
+    <div class="game-controls">
+        <h3>Controls:</h3>
+        <ul>
+            <li>↑ - Jump</li>
+            <li>↓ - Duck</li>
+            <li>← - Move Left</li>
+            <li>→ - Move Right</li>
+            <li>Space - Start/Restart Game</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+    .game-container {
+        max-width: 1000px;
+        margin: 20px auto;
+        padding: 15px;
+        background: #f0f0f0;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .game-area {
+        position: relative;
+        width: 100%;
+        height: 500px;
+        margin: 15px 0;
+        border: 3px solid #333;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    /* Game-specific styles */
+    body {
+        margin: 0;
+        overflow: hidden;
+        font-family: 'Arial', sans-serif;
+    }
+    
+    canvas {
+        display: block;
+        margin: auto;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .game-ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        z-index: 10;
+    }
+    
+    .instructions {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 16px;
+        z-index: 10;
+    }
+    
+    .game-controls {
+        margin-top: 15px;
+        padding: 10px;
+        background: #e0e0e0;
+        border-radius: 5px;
+    }
+    
+    .game-controls ul {
+        list-style-type: none;
+        padding-left: 10px;
+    }
+    
+    .game-controls li {
+        margin: 5px 0;
+    }
+</style>
+
+<script>
+    // Wait for the DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const coinCountElement = document.getElementById("coinCount");
+        const distanceCountElement = document.getElementById("distanceCount");
+        
+        // Set canvas to fill the game area
+        function resizeCanvas() {
+            const gameArea = canvas.parentElement;
+            canvas.width = gameArea.clientWidth;
+            canvas.height = gameArea.clientHeight;
+        }
+        
+        // Initial canvas sizing
+        resizeCanvas();
+        
+        // Handle window resize
+        window.addEventListener('resize', resizeCanvas);
+
+        // Game state
+        let gameStarted = false;
+        let gameOver = false;
+        let score = 0;
+        let distance = 0;
+        let coins = 0;
+        
+        // Duck object
+        let duck = {
+            x: 200,
+            y: 300,
+            width: 50,
+            height: 50,
+            velocityY: 0,
+            gravity: 0.5,
+            jumpPower: -12,
+            speed: 5,
+            onGround: false,
+            isDucking: false,
+            frame: 0,
+            frameCount: 0,
+            animationSpeed: 5
+        };
+        
+        // Game world
+        let worldOffsetX = 0;
+        let platforms = [];
+        let coins_array = [];
+        let obstacles = [];
+        let backgroundElements = [];
+        
+        // Platform generation
+        const minPlatformWidth = 100;
+        const maxPlatformWidth = 300;
+        const minGapWidth = 100;
+        const maxGapWidth = 250;
+        const platformVariation = 150; // Max height difference between platforms
+        
+        // Load images
+        const duckImg = new Image();
+        duckImg.src = '/api/placeholder/50/50';
+        
+        const coinImg = new Image();
+        coinImg.src = '/api/placeholder/30/30';
+        
+        const groundImg = new Image();
+        groundImg.src = '/api/placeholder/100/50';
+        
+        // Initialize game
+        function initGame() {
+            platforms = [];
+            coins_array = [];
+            obstacles = [];
+            backgroundElements = [];
+            
+            // Create initial ground platform
+            platforms.push({ 
+                x: 0, 
+                y: canvas.height - 50, 
+                width: canvas.width * 2, 
+                height: 50, 
+                isGround: true 
+            });
+            
+            // Generate initial platforms
+            generatePlatforms();
+            
+            // Reset duck position
+            duck.x = 200;
+            duck.y = canvas.height - 100;
+            duck.velocityY = 0;
+            
+            // Reset score
+            score = 0;
+            distance = 0;
+            coins = 0;
+            
+            gameStarted = true;
+            gameOver = false;
+            
+            // Update UI
+            coinCountElement.textContent = coins;
+            distanceCountElement.textContent = distance;
+        }
+        
+        // Generate random platforms
+        function generatePlatforms() {
+            let lastPlatformX = platforms.length > 0 ? platforms[platforms.length - 1].x + platforms[platforms.length - 1].width : 0;
+            const screenEndX = worldOffsetX + canvas.width + 1000; // Generate platforms beyond the screen
+            
+            let lastY = canvas.height - 50;
+            
+            while (lastPlatformX < screenEndX) {
+                // Generate a gap
+                const gapWidth = Math.random() * (maxGapWidth - minGapWidth) + minGapWidth;
+                lastPlatformX += gapWidth;
+                
+                // Generate the next platform
+                const platformWidth = Math.random() * (maxPlatformWidth - minPlatformWidth) + minPlatformWidth;
+                
+                // Vary the height but ensure it's reachable
+                let nextY = lastY + (Math.random() * platformVariation * 2 - platformVariation);
+                
+                // Keep platform within reasonable bounds
+                nextY = Math.max(canvas.height / 2, Math.min(canvas.height - 100, nextY));
+                
+                // Add platform
+                platforms.push({ 
+                    x: lastPlatformX, 
+                    y: nextY, 
+                    width: platformWidth, 
+                    height: 20
+                });
+                
+                // Randomly add coins above the platform
+                if (Math.random() > 0.5) {
+                    for (let i = 0; i < Math.floor(Math.random() * 3) + 1; i++) {
+                        coins_array.push({
+                            x: lastPlatformX + i * 30 + Math.random() * (platformWidth - 60),
+                            y: nextY - 50 - Math.random() * 50,
+                            width: 30,
+                            height: 30,
+                            collected: false
+                        });
+                    }
+                }
+                
+                lastPlatformX += platformWidth;
+                lastY = nextY;
+            }
+        }
+        
+        // Draw duck with animation
+        function drawDuck() {
+            ctx.save();
+            
+            // Update animation frame
+            duck.frameCount++;
+            if (duck.frameCount >= duck.animationSpeed) {
+                duck.frame = (duck.frame + 1) % 4; // 4 frames of animation
+                duck.frameCount = 0;
+            }
+            
+            // Draw duck
+            ctx.fillStyle = "yellow";
+            
+            if (duck.isDucking) {
+                // Ducking duck (smaller height, wider width)
+                ctx.fillRect(duck.x, duck.y + duck.height / 2, duck.width * 1.2, duck.height / 2);
+                
+                // Duck head
+                ctx.fillStyle = "orange";
+                ctx.fillRect(duck.x + duck.width, duck.y + duck.height / 2 + 10, 15, 10);
+            } else {
+                // Regular duck
+                ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
+                
+                // Duck head
+                ctx.fillStyle = "orange";
+                ctx.fillRect(duck.x + duck.width - 15, duck.y + 10, 25, 15);
+                
+                // Duck wings animation
+                if (duck.velocityY < 0) {
+                    // Flapping wings when jumping
+                    ctx.fillStyle = "yellow";
+                    ctx.fillRect(duck.x - 15, duck.y + 15, 20, 10);
+                } else if (!duck.onGround) {
+                    // Gliding wings when falling
+                    ctx.fillStyle = "yellow";
+                    ctx.fillRect(duck.x - 10, duck.y + 20, 15, 5);
+                } else if (duck.frameCount % 20 < 10) {
+                    // Idle animation when on ground
+                    ctx.fillStyle = "yellow";
+                    ctx.fillRect(duck.x - 5, duck.y + 20, 10, 5);
+                }
+            }
+            
+            // Duck eyes
+            ctx.fillStyle = "black";
+            ctx.fillRect(duck.x + duck.width - 10, duck.y + 15, 5, 5);
+            
+            ctx.restore();
+        }
+        
+        // Draw platforms
+        function drawPlatforms() {
+            platforms.forEach(platform => {
+                if (isOnScreen(platform)) {
+                    if (platform.isGround) {
+                        ctx.fillStyle = "#8B4513"; // Brown for ground
+                    } else {
+                        ctx.fillStyle = "#228B22"; // Green for platforms
+                    }
+                    ctx.fillRect(
+                        platform.x - worldOffsetX, 
+                        platform.y, 
+                        platform.width, 
+                        platform.height
+                    );
+                }
+            });
+        }
+        
+        // Draw coins
+        function drawCoins() {
+            coins_array.forEach(coin => {
+                if (!coin.collected && isOnScreen(coin)) {
+                    ctx.fillStyle = "gold";
+                    ctx.beginPath();
+                    ctx.arc(
+                        coin.x - worldOffsetX + coin.width/2, 
+                        coin.y + coin.height/2, 
+                        coin.width/2, 
+                        0, 
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                    
+                    // Shine effect
+                    ctx.fillStyle = "white";
+                    ctx.beginPath();
+                    ctx.arc(
+                        coin.x - worldOffsetX + coin.width/2 - 5, 
+                        coin.y + coin.height/2 - 5, 
+                        coin.width/6, 
+                        0, 
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            });
+        }
+        
+        // Draw background with parallax
+        function drawBackground() {
+            // Sky gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, "#87CEEB");
+            gradient.addColorStop(1, "#1E90FF");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Sun
+            ctx.fillStyle = "#FFD700";
+            ctx.beginPath();
+            ctx.arc(100, 100, 50, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Clouds with parallax effect
+            ctx.fillStyle = "white";
+            // Slow-moving distant clouds
+            const cloudPositions = [
+                { x: 300, y: 80, w: 100, h: 40, speed: 0.2 },
+                { x: 600, y: 150, w: 150, h: 50, speed: 0.1 },
+                { x: 900, y: 100, w: 120, h: 45, speed: 0.15 }
+            ];
+            
+            cloudPositions.forEach(cloud => {
+                let cloudX = (cloud.x - (worldOffsetX * cloud.speed)) % (canvas.width + 300) - 100;
+                if (cloudX < canvas.width && cloudX + cloud.w > 0) {
+                    // Draw fluffy cloud
+                    drawCloud(cloudX, cloud.y, cloud.w, cloud.h);
+                }
+            });
+        }
+        
+        // Helper function to draw a fluffy cloud
+        function drawCloud(x, y, width, height) {
+            ctx.beginPath();
+            ctx.arc(x + width * 0.3, y + height * 0.5, height * 0.5, 0, Math.PI * 2);
+            ctx.arc(x + width * 0.5, y + height * 0.3, height * 0.6, 0, Math.PI * 2);
+            ctx.arc(x + width * 0.7, y + height * 0.5, height * 0.5, 0, Math.PI * 2);
+            ctx.arc(x + width * 0.5, y + height * 0.7, height * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Check if an object is visible on screen (for optimization)
+        function isOnScreen(obj) {
+            return (
+                obj.x + obj.width > worldOffsetX &&
+                obj.x < worldOffsetX + canvas.width
+            );
+        }
+        
+        // Check collision with platforms and update duck position
+        function checkPlatformCollisions() {
+            duck.onGround = false;
+            
+            platforms.forEach(platform => {
+                if (
+                    duck.x < platform.x + platform.width &&
+                    duck.x + duck.width > platform.x &&
+                    duck.y + duck.height > platform.y &&
+                    duck.y + duck.height - duck.velocityY <= platform.y + 10
+                ) {
+                    // Landing on platform
+                    if (duck.velocityY >= 0) {
+                        duck.y = platform.y - duck.height;
+                        duck.velocityY = 0;
+                        duck.onGround = true;
+                    }
+                }
+            });
+        }
+        
+        // Check collision with coins
+        function checkCoinCollisions() {
+            coins_array.forEach(coin => {
+                if (
+                    !coin.collected &&
+                    duck.x < coin.x + coin.width &&
+                    duck.x + duck.width > coin.x &&
+                    duck.y < coin.y + coin.height &&
+                    duck.y + duck.height > coin.y
+                ) {
+                    coin.collected = true;
+                    coins++;
+                    coinCountElement.textContent = coins;
+                }
+            });
+        }
+        
+        // Clean up objects that are far behind the screen
+        function cleanupObjects() {
+            const cleanupX = worldOffsetX - 1000;
+            
+            // Remove platforms that are far behind
+            platforms = platforms.filter(platform => platform.x + platform.width > cleanupX || platform.isGround);
+            
+            // Remove collected coins or coins far behind
+            coins_array = coins_array.filter(coin => !coin.collected && coin.x > cleanupX);
+        }
+        
+        // Update game state
+        function update() {
+            if (!gameStarted || gameOver) return;
+            
+            // Apply gravity
+            duck.velocityY += duck.gravity;
+            duck.y += duck.velocityY;
+            
+            // Check collisions
+            checkPlatformCollisions();
+            checkCoinCollisions();
+            
+            // Auto-scroll
+            worldOffsetX += 2;
+            distance = Math.floor(worldOffsetX / 100);
+            distanceCountElement.textContent = distance;
+            
+            // Generate more platforms if needed
+            if (worldOffsetX + canvas.width + 500 > platforms[platforms.length - 1].x + platforms[platforms.length - 1].width) {
+                generatePlatforms();
+            }
+            
+            // Cleanup objects far behind
+            cleanupObjects();
+            
+            // Check if duck fell off screen
+            if (duck.y > canvas.height) {
+                gameOver = true;
+                setTimeout(() => {
+                    if (confirm("Game Over! Your score: " + distance + " meters and " + coins + " coins. Play again?")) {
+                        initGame();
+                    }
+                }, 100);
+            }
+            
+            // Check if duck moved too far to the left
+            if (duck.x < worldOffsetX - 100) {
+                duck.x = worldOffsetX - 100;
+            }
+            
+            // Check if duck moved too far to the right
+            if (duck.x > worldOffsetX + canvas.width - duck.width - 100) {
+                duck.x = worldOffsetX + canvas.width - duck.width - 100;
+            }
+        }
+        
+        // Main game loop
+        function gameLoop() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw game elements
+            drawBackground();
+            drawPlatforms();
+            drawCoins();
+            drawDuck();
+            
+            // Update game state
+            update();
+            
+            // Show start screen if game hasn't started
+            if (!gameStarted) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = "white";
+                ctx.font = "40px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("Quackventure: Infinite Pond", canvas.width / 2, canvas.height / 2 - 50);
+                
+                ctx.font = "20px Arial";
+                ctx.fillText("Press SPACE to start", canvas.width / 2, canvas.height / 2 + 30);
+                ctx.fillText("↑ Jump | ↓ Duck | ← Move Left | → Move Right", canvas.width / 2, canvas.height / 2 + 70);
+            }
+            
+            // Continue game loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Input handling
+        const keys = {};
+        
+        document.addEventListener("keydown", function(event) {
+            keys[event.key] = true;
+            
+            // Start game with space
+            if (!gameStarted && event.key === " ") {
+                initGame();
+            }
+            
+            // Restart after game over
+            if (gameOver && event.key === " ") {
+                initGame();
+            }
+            
+            // Jump (only if on ground)
+            if (event.key === "ArrowUp" && duck.onGround && !duck.isDucking) {
+                duck.velocityY = duck.jumpPower;
+                duck.onGround = false;
+            }
+            
+            // Duck
+            if (event.key === "ArrowDown") {
+                duck.isDucking = true;
+                if (duck.onGround) {
+                    duck.height = 25;
+                    duck.y += 25;
+                }
+            }
+        });
+        
+        document.addEventListener("keyup", function(event) {
+            keys[event.key] = false;
+            
+            // Stop ducking
+            if (event.key === "ArrowDown" && duck.isDucking) {
+                duck.isDucking = false;
+                if (duck.onGround) {
+                    duck.y -= 25;
+                    duck.height = 50;
+                }
+            }
+        });
+        
+        // Handle continuous input in game loop
+        function handleInput() {
+            if (!gameStarted || gameOver) return;
+            
+            if (keys["ArrowRight"]) {
+                duck.x += duck.speed;
+                worldOffsetX += 1; // Make world scroll faster when moving right
+            }
+            
+            if (keys["ArrowLeft"]) {
+                duck.x -= duck.speed;
+            }
+        }
+        
+        // Add input handling to game loop
+        const originalUpdate = update;
+        update = function() {
+            handleInput();
+            originalUpdate();
+        };
+        
+        // Initialize and start game loop
+        gameLoop();
+    });
+</script>
   <footer>&copy; 2024 My Games</footer>
 </body>
 </html>
