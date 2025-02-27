@@ -1,257 +1,33 @@
-<!-- Add this to your HTML -->
-<style>
-    #game-info {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        color: white;
-        font-family: Arial;
-        font-size: 20px;
-    }
-</style>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const gameCanvas = document.createElement("canvas");
-    const ctx = gameCanvas.getContext("2d");
-    document.getElementById("duck-heist-game").appendChild(gameCanvas);
-    gameCanvas.width = 800;
-    gameCanvas.height = 600;
-
-    const duckImg = new Image();
-    duckImg.src = "duck.png";
-    let useDuckImage = true;
-    duckImg.onerror = () => useDuckImage = false;
-
-    // Game state
-    let duck = { x: 50, y: 300, width: 50, height: 50, speed: 7 };
-    let bread = { x: 0, y: 0, width: 20, height: 20 };
-    let guards = [];
-    let obstacles = [];
-    let score = 0;
-    let timeLeft = 60;
-    let gameOver = false;
-    let targetX = duck.x;
-    let targetY = duck.y;
-    let keys = {};
-
-    // Initialize game objects
-    function initializeGame() {
-        bread = getValidPosition(bread);
-        obstacles = [
-            { x: 400, y: 200, width: 50, height: 50 },
-            { x: 200, y: 400, width: 80, height: 30 },
-            { x: 600, y: 100, width: 60, height: 60 }
-        ];
-        guards = [
-            { x: 700, y: 500, width: 40, height: 40, speed: 3 },
-            { x: 100, y: 500, width: 40, height: 40, speed: 3.5 }
-        ];
-    }
-
-    // Get valid position for bread
-    function getValidPosition(obj) {
-        let newPos;
-        do {
-            newPos = {
-                x: Math.random() * (gameCanvas.width - obj.width),
-                y: Math.random() * (gameCanvas.height - obj.height),
-                width: obj.width,
-                height: obj.height
-            };
-        } while (isColliding(newPos));
-        return newPos;
-    }
-
-    // Check collisions with any object
-    function isColliding(obj) {
-        return [...obstacles, ...guards].some(item => checkCollision(obj, item));
-    }
-
-    function checkCollision(a, b) {
-        return a.x < b.x + b.width &&
-               a.x + a.width > b.x &&
-               a.y < b.y + b.height &&
-               a.y + a.height > b.y;
-    }
-
-    // Drawing functions
-    function drawDuck() {
-        if (useDuckImage && duckImg.complete) {
-            ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
-        } else {
-            ctx.fillStyle = "yellow";
-            ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Heist Game</title>
+    <style>
+        #game-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 20px;
         }
-    }
-
-    function drawBread() {
-        ctx.fillStyle = "#a52a2a";
-        ctx.beginPath();
-        ctx.arc(bread.x + 10, bread.y + 10, 10, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    function drawGuards() {
-        guards.forEach(guard => {
-            ctx.fillStyle = "#ff4444";
-            ctx.beginPath();
-            ctx.arc(guard.x + 20, guard.y + 20, 20, 0, Math.PI * 2);
-            ctx.fill();
-        });
-    }
-
-    function drawObstacles() {
-        obstacles.forEach(obstacle => {
-            ctx.fillStyle = "#666";
-            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-        });
-    }
-
-    function drawGameInfo() {
-        ctx.fillStyle = "white";
-        ctx.font = "20px Arial";
-        ctx.fillText(`Score: ${score}`, 10, 30);
-        ctx.fillText(`Time: ${timeLeft}`, 10, 60);
-    }
-
-    // Movement and collision handling
-    function handleMovement() {
-        // Keyboard movement
-        let movingX = 0, movingY = 0;
-        if (keys["ArrowUp"]) movingY--;
-        if (keys["ArrowDown"]) movingY++;
-        if (keys["ArrowLeft"]) movingX--;
-        if (keys["ArrowRight"]) movingX++;
-
-        // Touch movement
-        const dx = targetX - duck.x;
-        const dy = targetY - duck.y;
-        const touchDistance = Math.sqrt(dx ** 2 + dy ** 2);
-        if (touchDistance > 0) {
-            movingX += dx / touchDistance;
-            movingY += dy / touchDistance;
+        #restart-btn {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px 20px;
+            font-size: 20px;
+            cursor: pointer;
         }
-
-        // Normalize movement
-        if (movingX !== 0 || movingY !== 0) {
-            const distance = Math.sqrt(movingX ** 2 + movingY ** 2);
-            duck.x += (movingX / distance) * duck.speed;
-            duck.y += (movingY / distance) * duck.speed;
-        }
-
-        // Keep duck in bounds
-        duck.x = Math.max(0, Math.min(gameCanvas.width - duck.width, duck.x));
-        duck.y = Math.max(0, Math.min(gameCanvas.height - duck.height, duck.y));
-    }
-
-    function handleCollisions() {
-        // Check bread collision
-        if (checkCollision(duck, bread)) {
-            score++;
-            bread = getValidPosition(bread);
-        }
-
-        // Check guard collisions
-        guards.forEach(guard => {
-            if (checkCollision(duck, guard)) {
-                endGame("Caught by security! Game Over.");
-            }
-        });
-
-        // Obstacle collisions
-        obstacles.forEach(obstacle => {
-            if (checkCollision(duck, obstacle)) {
-                const overlapX = duck.x < obstacle.x ? 
-                    duck.x + duck.width - obstacle.x : 
-                    obstacle.x + obstacle.width - duck.x;
-                const overlapY = duck.y < obstacle.y ? 
-                    duck.y + duck.height - obstacle.y : 
-                    obstacle.y + obstacle.height - duck.y;
-                
-                if (Math.abs(overlapX) < Math.abs(overlapY)) {
-                    duck.x += overlapX;
-                } else {
-                    duck.y += overlapY;
-                }
-            }
-        });
-    }
-
-    function moveGuards() {
-        guards.forEach(guard => {
-            const dx = duck.x - guard.x;
-            const dy = duck.y - guard.y;
-            const distance = Math.sqrt(dx ** 2 + dy ** 2);
-            
-            if (distance > 0) {
-                guard.x += (dx / distance) * guard.speed;
-                guard.y += (dy / distance) * guard.speed;
-            }
-
-            // Keep guards in bounds
-            guard.x = Math.max(0, Math.min(gameCanvas.width - guard.width, guard.x));
-            guard.y = Math.max(0, Math.min(gameCanvas.height - guard.height, guard.y));
-        });
-    }
-
-    function endGame(message) {
-        gameOver = true;
-        ctx.fillStyle = "red";
-        ctx.font = "40px Arial";
-        ctx.fillText(message, gameCanvas.width/2 - 200, gameCanvas.height/2);
-        document.getElementById("restart-btn").style.display = "block";
-    }
-
-    function updateGame() {
-        if (gameOver) return;
-        ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
-        
-        handleMovement();
-        moveGuards();
-        handleCollisions();
-        
-        drawObstacles();
-        drawBread();
-        drawGuards();
-        drawDuck();
-        drawGameInfo();
-    }
-
-    // Event listeners
-    window.addEventListener("keydown", e => keys[e.key] = true);
-    window.addEventListener("keyup", e => keys[e.key] = false);
-
-    window.addEventListener("touchstart", e => {
-        const rect = gameCanvas.getBoundingClientRect();
-        targetX = e.touches[0].clientX - rect.left;
-        targetY = e.touches[0].clientY - rect.top;
-    });
-
-    window.addEventListener("touchmove", e => {
-        const rect = gameCanvas.getBoundingClientRect();
-        targetX = e.touches[0].clientX - rect.left;
-        targetY = e.touches[0].clientY - rect.top;
-    });
-
-    setInterval(() => {
-        if (!gameOver && timeLeft-- <= 0) endGame("Time's up! Game Over.");
-    }, 1000);
-
-    document.getElementById("restart-btn").addEventListener("click", () => {
-        gameOver = false;
-        score = 0;
-        timeLeft = 60;
-        initializeGame();
-        document.getElementById("restart-btn").style.display = "none";
-    });
-
-    // Start the game
-    initializeGame();
-    function gameLoop() {
-        updateGame();
-        requestAnimationFrame(gameLoop);
-    }
-    gameLoop();
-});
-</script>
+    </style>
+</head>
+<body>
+    <div id="duck-heist-game"></div>
+    <button id="restart-btn">Restart Game</button>
+    <script src="game.js"></script> <!-- Link to your JS file -->
+</body>
+</html>
