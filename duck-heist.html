@@ -5,6 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duck Heist Game</title>
     <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+        #duck-heist-game {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            max-height: 100vh;
+        }
+        canvas {
+            border: 4px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
         #game-info {
             position: absolute;
             top: 10px;
@@ -22,29 +47,108 @@
             padding: 10px 20px;
             font-size: 20px;
             cursor: pointer;
+            background-color: #ffcc00;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            font-weight: bold;
+        }
+        #restart-btn:hover {
+            background-color: #ffdd33;
+        }
+        #mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            width: 180px;
+            height: 180px;
+        }
+        @media (max-width: 800px) {
+            #mobile-controls {
+                display: block;
+            }
+        }
+        .control-btn {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 204, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: white;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #up-btn {
+            top: 0;
+            left: 60px;
+        }
+        #left-btn {
+            top: 60px;
+            left: 0;
+        }
+        #right-btn {
+            top: 60px;
+            left: 120px;
+        }
+        #down-btn {
+            top: 120px;
+            left: 60px;
         }
     </style>
 </head>
 <body>
-    <div id="duck-heist-game"></div>
+    <div id="duck-heist-game">
+        <div id="mobile-controls">
+            <div class="control-btn" id="up-btn">↑</div>
+            <div class="control-btn" id="left-btn">←</div>
+            <div class="control-btn" id="right-btn">→</div>
+            <div class="control-btn" id="down-btn">↓</div>
+        </div>
+    </div>
     <button id="restart-btn">Restart Game</button>
 
     <script>
         // JavaScript code for the Duck Heist Game
         document.addEventListener("DOMContentLoaded", function () {
+            const gameContainer = document.getElementById("duck-heist-game");
             const gameCanvas = document.createElement("canvas");
             const ctx = gameCanvas.getContext("2d");
-            document.getElementById("duck-heist-game").appendChild(gameCanvas);
-            gameCanvas.width = 800;
-            gameCanvas.height = 600;
+            gameContainer.insertBefore(gameCanvas, gameContainer.firstChild);
+            
+            // Set initial canvas dimensions
+            const CANVAS_WIDTH = 800;
+            const CANVAS_HEIGHT = 600;
+            gameCanvas.width = CANVAS_WIDTH;
+            gameCanvas.height = CANVAS_HEIGHT;
 
+            // Handle responsive scaling
+            function resizeCanvas() {
+                const containerWidth = gameContainer.clientWidth;
+                const scale = containerWidth / CANVAS_WIDTH;
+                gameCanvas.style.width = containerWidth + "px";
+                gameCanvas.style.height = (CANVAS_HEIGHT * scale) + "px";
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // Load duck image from the provided URL
             const duckImg = new Image();
-            duckImg.src = "duck.png";
+            duckImg.src = "https://imgur.com/qWaySbp.png";
             let useDuckImage = true;
             duckImg.onerror = () => useDuckImage = false;
 
+            // Game background
+            const bgColor = "#3a7d44";
+
             // Game state
-            let duck = { x: 50, y: 300, width: 50, height: 50, speed: 7 };
+            let duck = { x: 50, y: 300, width: 50, height: 50, speed: 10 };
             let bread = { x: 0, y: 0, width: 20, height: 20 };
             let guards = [];
             let obstacles = [];
@@ -54,6 +158,12 @@
             let targetX = duck.x;
             let targetY = duck.y;
             let keys = {};
+            let mobileControls = {
+                up: false,
+                down: false,
+                left: false,
+                right: false
+            };
 
             // Initialize game objects
             function initializeGame() {
@@ -61,11 +171,14 @@
                 obstacles = [
                     { x: 400, y: 200, width: 50, height: 50 },
                     { x: 200, y: 400, width: 80, height: 30 },
-                    { x: 600, y: 100, width: 60, height: 60 }
+                    { x: 600, y: 100, width: 60, height: 60 },
+                    { x: 300, y: 300, width: 40, height: 70 },
+                    { x: 700, y: 300, width: 30, height: 100 }
                 ];
                 guards = [
-                    { x: 700, y: 500, width: 40, height: 40, speed: 3 },
-                    { x: 100, y: 500, width: 40, height: 40, speed: 3.5 }
+                    { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 150 },
+                    { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 170 },
+                    { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 160 }
                 ];
             }
 
@@ -74,8 +187,8 @@
                 let newPos;
                 do {
                     newPos = {
-                        x: Math.random() * (gameCanvas.width - obj.width),
-                        y: Math.random() * (gameCanvas.height - obj.height),
+                        x: Math.random() * (CANVAS_WIDTH - obj.width),
+                        y: Math.random() * (CANVAS_HEIGHT - obj.height),
                         width: obj.width,
                         height: obj.height
                     };
@@ -95,6 +208,29 @@
                        a.y + a.height > b.y;
             }
 
+            // Check if guard can see player
+            function canSeePlayer(guard) {
+                const dx = duck.x - guard.x;
+                const dy = duck.y - guard.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check if player is within vision range
+                if (distance <= guard.visionRange) {
+                    // Check for obstacles blocking line of sight
+                    const lineOfSight = {
+                        x: Math.min(guard.x, duck.x),
+                        y: Math.min(guard.y, duck.y),
+                        width: Math.abs(dx),
+                        height: Math.abs(dy)
+                    };
+                    
+                    // Simple line of sight check - not perfect but works for this game
+                    const canSee = !obstacles.some(obstacle => checkCollision(obstacle, lineOfSight));
+                    return canSee;
+                }
+                return false;
+            }
+
             // Drawing functions
             function drawDuck() {
                 if (useDuckImage && duckImg.complete) {
@@ -106,49 +242,122 @@
             }
 
             function drawBread() {
-                ctx.fillStyle = "#a52a2a";
+                ctx.fillStyle = "#d4a76a";
                 ctx.beginPath();
                 ctx.arc(bread.x + 10, bread.y + 10, 10, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add details to bread
+                ctx.fillStyle = "#b58b4c";
+                ctx.beginPath();
+                ctx.arc(bread.x + 7, bread.y + 8, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(bread.x + 13, bread.y + 12, 2, 0, Math.PI * 2);
                 ctx.fill();
             }
 
             function drawGuards() {
                 guards.forEach(guard => {
-                    ctx.fillStyle = "#ff4444";
+                    // Draw guard body
+                    ctx.fillStyle = guard.canSeePlayer ? "#ff4444" : "#884444";
                     ctx.beginPath();
                     ctx.arc(guard.x + 20, guard.y + 20, 20, 0, Math.PI * 2);
                     ctx.fill();
+                    
+                    // Draw guard vision range as a transparent circle
+                    ctx.beginPath();
+                    ctx.arc(guard.x + 20, guard.y + 20, guard.visionRange, 0, Math.PI * 2);
+                    ctx.fillStyle = guard.canSeePlayer ? "rgba(255, 100, 100, 0.1)" : "rgba(200, 100, 100, 0.05)";
+                    ctx.fill();
+                    
+                    // Draw eyes
+                    ctx.fillStyle = "white";
+                    ctx.beginPath();
+                    ctx.arc(guard.x + 15, guard.y + 15, 5, 0, Math.PI * 2);
+                    ctx.arc(guard.x + 25, guard.y + 15, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Draw pupils (looking at player when in sight)
+                    ctx.fillStyle = "black";
+                    const angle = Math.atan2(duck.y - guard.y, duck.x - guard.x);
+                    const eyeOffsetX = guard.canSeePlayer ? 2 * Math.cos(angle) : 0;
+                    const eyeOffsetY = guard.canSeePlayer ? 2 * Math.sin(angle) : 0;
+                    
+                    ctx.beginPath();
+                    ctx.arc(guard.x + 15 + eyeOffsetX, guard.y + 15 + eyeOffsetY, 2, 0, Math.PI * 2);
+                    ctx.arc(guard.x + 25 + eyeOffsetX, guard.y + 15 + eyeOffsetY, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Draw alert symbol if guard sees player
+                    if (guard.canSeePlayer) {
+                        ctx.fillStyle = "yellow";
+                        ctx.beginPath();
+                        ctx.moveTo(guard.x + 20, guard.y - 10);
+                        ctx.lineTo(guard.x + 10, guard.y - 30);
+                        ctx.lineTo(guard.x + 30, guard.y - 30);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = "black";
+                        ctx.beginPath();
+                        ctx.arc(guard.x + 20, guard.y - 20, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 });
             }
 
             function drawObstacles() {
-                obstacles.forEach(obstacle => {
-                    ctx.fillStyle = "#666";
+                obstacles.forEach((obstacle, index) => {
+                    // Different color variations for obstacles
+                    const colors = ["#555", "#666", "#777", "#444", "#505050"];
+                    ctx.fillStyle = colors[index % colors.length];
                     ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                    
+                    // Add some texture
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+                    for (let i = 0; i < 3; i++) {
+                        const dotX = obstacle.x + Math.random() * obstacle.width;
+                        const dotY = obstacle.y + Math.random() * obstacle.height;
+                        ctx.beginPath();
+                        ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 });
             }
 
             function drawGameInfo() {
+                // Bread score
                 ctx.fillStyle = "white";
-                ctx.font = "20px Arial";
-                ctx.fillText(`Score: ${score}`, 10, 30);
-                ctx.fillText(`Time: ${timeLeft}`, 10, 60);
+                ctx.font = "bold 24px Arial";
+                ctx.fillText(`Bread: ${score}`, 20, 40);
+                
+                // Time left
+                ctx.fillStyle = timeLeft <= 10 ? "#ff4444" : "white";
+                ctx.font = "bold 24px Arial";
+                ctx.fillText(`Time: ${timeLeft}`, CANVAS_WIDTH - 120, 40);
+                
+                // Draw game border
+                ctx.strokeStyle = "#ffcc00";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
             }
 
             // Movement and collision handling
             function handleMovement() {
-                // Keyboard movement
+                // Keyboard and mobile movement
                 let movingX = 0, movingY = 0;
-                if (keys["ArrowUp"]) movingY--;
-                if (keys["ArrowDown"]) movingY++;
-                if (keys["ArrowLeft"]) movingX--;
-                if (keys["ArrowRight"]) movingX++;
+                
+                // WASD and Arrow keys
+                if (keys["ArrowUp"] || keys["w"] || keys["W"] || mobileControls.up) movingY--;
+                if (keys["ArrowDown"] || keys["s"] || keys["S"] || mobileControls.down) movingY++;
+                if (keys["ArrowLeft"] || keys["a"] || keys["A"] || mobileControls.left) movingX--;
+                if (keys["ArrowRight"] || keys["d"] || keys["D"] || mobileControls.right) movingX++;
 
-                // Touch movement
+                // Touch movement (for devices without visible controls)
                 const dx = targetX - duck.x;
                 const dy = targetY - duck.y;
                 const touchDistance = Math.sqrt(dx ** 2 + dy ** 2);
-                if (touchDistance > 0) {
+                if (touchDistance > 5) { // Added threshold to prevent jitter
                     movingX += dx / touchDistance;
                     movingY += dy / touchDistance;
                 }
@@ -161,8 +370,8 @@
                 }
 
                 // Keep duck in bounds
-                duck.x = Math.max(0, Math.min(gameCanvas.width - duck.width, duck.x));
-                duck.y = Math.max(0, Math.min(gameCanvas.height - duck.height, duck.y));
+                duck.x = Math.max(0, Math.min(CANVAS_WIDTH - duck.width, duck.x));
+                duck.y = Math.max(0, Math.min(CANVAS_HEIGHT - duck.height, duck.y));
             }
 
             function handleCollisions() {
@@ -190,9 +399,9 @@
                             obstacle.y + obstacle.height - duck.y;
                         
                         if (Math.abs(overlapX) < Math.abs(overlapY)) {
-                            duck.x += overlapX;
+                            duck.x += overlapX > 0 ? -overlapX : Math.abs(overlapX);
                         } else {
-                            duck.y += overlapY;
+                            duck.y += overlapY > 0 ? -overlapY : Math.abs(overlapY);
                         }
                     }
                 });
@@ -200,33 +409,105 @@
 
             function moveGuards() {
                 guards.forEach(guard => {
-                    const dx = duck.x - guard.x;
-                    const dy = duck.y - guard.y;
-                    const distance = Math.sqrt(dx ** 2 + dy ** 2);
+                    // Check if guard can see player
+                    guard.canSeePlayer = canSeePlayer(guard);
                     
-                    if (distance > 0) {
-                        guard.x += (dx / distance) * guard.speed;
-                        guard.y += (dy / distance) * guard.speed;
+                    // Only move toward player if guard can see them
+                    if (guard.canSeePlayer) {
+                        const dx = duck.x - guard.x;
+                        const dy = duck.y - guard.y;
+                        const distance = Math.sqrt(dx ** 2 + dy ** 2);
+                        
+                        if (distance > 0) {
+                            guard.x += (dx / distance) * guard.speed;
+                            guard.y += (dy / distance) * guard.speed;
+                        }
+                    } else {
+                        // Patrol randomly when not seeing player
+                        if (Math.random() < 0.02) {
+                            guard.patrolTargetX = Math.random() * CANVAS_WIDTH;
+                            guard.patrolTargetY = Math.random() * CANVAS_HEIGHT;
+                        }
+                        
+                        if (guard.patrolTargetX !== undefined) {
+                            const dx = guard.patrolTargetX - guard.x;
+                            const dy = guard.patrolTargetY - guard.y;
+                            const distance = Math.sqrt(dx ** 2 + dy ** 2);
+                            
+                            if (distance > 5) {
+                                guard.x += (dx / distance) * (guard.speed * 0.5);
+                                guard.y += (dy / distance) * (guard.speed * 0.5);
+                            }
+                        }
                     }
 
                     // Keep guards in bounds
-                    guard.x = Math.max(0, Math.min(gameCanvas.width - guard.width, guard.x));
-                    guard.y = Math.max(0, Math.min(gameCanvas.height - guard.height, guard.y));
+                    guard.x = Math.max(0, Math.min(CANVAS_WIDTH - guard.width, guard.x));
+                    guard.y = Math.max(0, Math.min(CANVAS_HEIGHT - guard.height, guard.y));
                 });
             }
 
             function endGame(message) {
                 gameOver = true;
-                ctx.fillStyle = "red";
-                ctx.font = "40px Arial";
-                ctx.fillText(message, gameCanvas.width/2 - 200, gameCanvas.height/2);
+                
+                // Draw semi-transparent overlay
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                
+                // Draw message box
+                ctx.fillStyle = "#333";
+                ctx.fillRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 80, 500, 160);
+                ctx.strokeStyle = "#ffcc00";
+                ctx.lineWidth = 4;
+                ctx.strokeRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 80, 500, 160);
+                
+                // Draw game over message
+                ctx.fillStyle = "#ffcc00";
+                ctx.font = "bold 36px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(message, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
+                
+                // Draw score
+                ctx.fillStyle = "white";
+                ctx.font = "24px Arial";
+                ctx.fillText(`Final Score: ${score} bread`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 20);
+                
+                // Reset text alignment
+                ctx.textAlign = "left";
+                
                 document.getElementById("restart-btn").style.display = "block";
+            }
+
+            function drawBackground() {
+                // Draw background
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                
+                // Draw grid pattern
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+                ctx.lineWidth = 1;
+                
+                const gridSize = 40;
+                for (let x = 0; x < CANVAS_WIDTH; x += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, CANVAS_HEIGHT);
+                    ctx.stroke();
+                }
+                
+                for (let y = 0; y < CANVAS_HEIGHT; y += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(CANVAS_WIDTH, y);
+                    ctx.stroke();
+                }
             }
 
             function updateGame() {
                 if (gameOver) return;
-                ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+                ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
                 
+                drawBackground();
                 handleMovement();
                 moveGuards();
                 handleCollisions();
@@ -238,30 +519,114 @@
                 drawGameInfo();
             }
 
-            // Event listeners
-            window.addEventListener("keydown", e => keys[e.key] = true);
+            // Set up mobile controls
+            const upBtn = document.getElementById("up-btn");
+            const downBtn = document.getElementById("down-btn");
+            const leftBtn = document.getElementById("left-btn");
+            const rightBtn = document.getElementById("right-btn");
+
+            // Touch event handlers for mobile controls
+            function setupMobileButton(button, direction) {
+                // Handle touch start
+                button.addEventListener("touchstart", function(e) {
+                    e.preventDefault();
+                    mobileControls[direction] = true;
+                });
+                
+                // Handle touch end
+                button.addEventListener("touchend", function(e) {
+                    e.preventDefault();
+                    mobileControls[direction] = false;
+                });
+                
+                // Handle touch cancel
+                button.addEventListener("touchcancel", function(e) {
+                    e.preventDefault();
+                    mobileControls[direction] = false;
+                });
+                
+                // Also handle mouse events for testing on desktop
+                button.addEventListener("mousedown", function(e) {
+                    e.preventDefault();
+                    mobileControls[direction] = true;
+                });
+                
+                button.addEventListener("mouseup", function(e) {
+                    e.preventDefault();
+                    mobileControls[direction] = false;
+                });
+            }
+
+            setupMobileButton(upBtn, "up");
+            setupMobileButton(downBtn, "down");
+            setupMobileButton(leftBtn, "left");
+            setupMobileButton(rightBtn, "right");
+
+            // Keyboard event listeners
+            window.addEventListener("keydown", e => {
+                keys[e.key] = true;
+                // Prevent arrow keys from scrolling the page
+                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                    e.preventDefault();
+                }
+            });
             window.addEventListener("keyup", e => keys[e.key] = false);
 
-            window.addEventListener("touchstart", e => {
-                const rect = gameCanvas.getBoundingClientRect();
-                targetX = e.touches[0].clientX - rect.left;
-                targetY = e.touches[0].clientY - rect.top;
+            // Mouse/touch events for canvas
+            gameCanvas.addEventListener("mousedown", e => {
+                if (!gameOver) {
+                    const rect = gameCanvas.getBoundingClientRect();
+                    const scaleX = gameCanvas.width / rect.width;
+                    const scaleY = gameCanvas.height / rect.height;
+                    targetX = (e.clientX - rect.left) * scaleX;
+                    targetY = (e.clientY - rect.top) * scaleY;
+                }
             });
 
-            window.addEventListener("touchmove", e => {
-                const rect = gameCanvas.getBoundingClientRect();
-                targetX = e.touches[0].clientX - rect.left;
-                targetY = e.touches[0].clientY - rect.top;
+            gameCanvas.addEventListener("mousemove", e => {
+                if (!gameOver && e.buttons === 1) {
+                    const rect = gameCanvas.getBoundingClientRect();
+                    const scaleX = gameCanvas.width / rect.width;
+                    const scaleY = gameCanvas.height / rect.height;
+                    targetX = (e.clientX - rect.left) * scaleX;
+                    targetY = (e.clientY - rect.top) * scaleY;
+                }
             });
 
-            setInterval(() => {
-                if (!gameOver && timeLeft-- <= 0) endGame("Time's up! Game Over.");
+            gameCanvas.addEventListener("touchstart", e => {
+                if (!gameOver) {
+                    e.preventDefault();
+                    const rect = gameCanvas.getBoundingClientRect();
+                    const scaleX = gameCanvas.width / rect.width;
+                    const scaleY = gameCanvas.height / rect.height;
+                    targetX = (e.touches[0].clientX - rect.left) * scaleX;
+                    targetY = (e.touches[0].clientY - rect.top) * scaleY;
+                }
+            });
+
+            gameCanvas.addEventListener("touchmove", e => {
+                if (!gameOver) {
+                    e.preventDefault();
+                    const rect = gameCanvas.getBoundingClientRect();
+                    const scaleX = gameCanvas.width / rect.width;
+                    const scaleY = gameCanvas.height / rect.height;
+                    targetX = (e.touches[0].clientX - rect.left) * scaleX;
+                    targetY = (e.touches[0].clientY - rect.top) * scaleY;
+                }
+            });
+
+            const gameTimer = setInterval(() => {
+                if (!gameOver && timeLeft-- <= 0) {
+                    clearInterval(gameTimer);
+                    endGame("Time's up! Game Over.");
+                }
             }, 1000);
 
             document.getElementById("restart-btn").addEventListener("click", () => {
                 gameOver = false;
                 score = 0;
                 timeLeft = 60;
+                duck = { x: 50, y: 300, width: 50, height: 50, speed: 10 };
                 initializeGame();
                 document.getElementById("restart-btn").style.display = "none";
             });
@@ -276,4 +641,4 @@
         });
     </script>
 </body>
-</html>
+</html
