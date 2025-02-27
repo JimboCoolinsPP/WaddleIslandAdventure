@@ -1,593 +1,281 @@
-// ===== LEVEL SYSTEM =====
-let currentLevel = 1;
-const maxLevels = 3;
-let levelConfig = {
-    1: {
-        timeLimit: 60,
-        guardCount: 3,
-        guardSpeed: 3,
-        breadCount: 5,
-        obstacleCount: 5,
-        goldBreadChance: 0.3,
-        guardVisionRange: 120
-    },
-    2: {
-        timeLimit: 50,
-        guardCount: 4,
-        guardSpeed: 3.5,
-        breadCount: 7,
-        obstacleCount: 7,
-        goldBreadChance: 0.4,
-        guardVisionRange: 130
-    },
-    3: {
-        timeLimit: 45,
-        guardCount: 5,
-        guardSpeed: 4,
-        breadCount: 10,
-        obstacleCount: 8,
-        goldBreadChance: 0.5,
-        guardVisionRange: 140
-    }
-};
+ Find the guard initialization code and reduce vision range
+guards = [
+    { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 120 }, // Reduced from 150
+    { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 130 }, // Reduced from 170
+    { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 125 } // Reduced from 160
+];
 
-// Add to the HTML, before the script tag
-// <!-- Add this for the level indicator -->
-// <div id="level-indicator">Level 1</div>
-// <div id="level-complete">
-//     <h2>Level Complete!</h2>
-//     <div id="level-stats"></div>
-//     <button id="next-level-btn">Next Level</button>
-// </div>
-// <div id="game-complete">
-//     <h2>Game Complete!</h2>
-//     <div id="final-stats"></div>
-//     <button id="play-again-btn">Play Again</button>
-// </div>
-// <audio id="collect-sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" preload="auto"></audio>
-// <audio id="gold-sound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
-// <audio id="level-up-sound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_cowbell.ogg" preload="auto"></audio>
-// <audio id="alert-sound" src="https://actions.google.com/sounds/v1/alarms/bugle_alert.ogg" preload="auto"></audio>
-// <audio id="power-up-sound" src="https://actions.google.com/sounds/v1/cartoon/siren_whistle.ogg" preload="auto"></audio>
-
-// Add these CSS styles
-/*
-#level-indicator {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: #ffcc00;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-family: Arial, sans-serif;
-    font-weight: bold;
-    font-size: 18px;
-    z-index: 10;
-}
-
-#level-complete, #game-complete {
-    display: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.85);
-    color: white;
-    padding: 20px 30px;
-    border-radius: 10px;
-    text-align: center;
-    z-index: 100;
-    border: 3px solid #ffcc00;
-    width: 80%;
-    max-width: 400px;
-}
-
-#level-stats, #final-stats {
-    margin: 15px 0;
-    font-size: 18px;
-    line-height: 1.5;
-}
-
-#next-level-btn, #play-again-btn {
-    background-color: #ffcc00;
-    border: none;
-    color: #333;
-    padding: 10px 20px;
-    font-size: 18px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-top: 10px;
-    transition: all 0.2s;
-}
-
-#next-level-btn:hover, #play-again-btn:hover {
-    background-color: #ffdd33;
-    transform: scale(1.05);
-}
-
-.score-popup {
-    position: absolute;
-    color: #ffcc00;
-    font-weight: bold;
-    font-size: 20px;
-    pointer-events: none;
-    animation: float-up 1s forwards;
-    text-shadow: 0px 0px 5px rgba(0, 0, 0, 0.8);
-}
-
-@keyframes float-up {
-    0% { transform: translateY(0); opacity: 1; }
-    100% { transform: translateY(-50px); opacity: 0; }
-}
-*/
-
-// ===== ENHANCED BREAD SYSTEM WITH GOLD BREAD =====
-function initializeBread() {
-    // Clear existing bread
-    breadItems = [];
+// Improve the canSeePlayer function to properly handle hiding behind obstacles
+function canSeePlayer(guard) {
+    const dx = duck.x + (duck.width / 2) - (guard.x + (guard.width / 2));
+    const dy = duck.y + (duck.height / 2) - (guard.y + (guard.height / 2));
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    // Get level config
-    const config = levelConfig[currentLevel];
-    
-    // Generate regular bread
-    for (let i = 0; i < config.breadCount; i++) {
-        const isGoldBread = Math.random() < config.goldBreadChance;
-        const breadItem = {
-            x: 0, 
-            y: 0, 
-            width: 20, 
-            height: 20,
-            isGold: isGoldBread,
-            value: isGoldBread ? 5 : 1,
-            collectTime: 0 // For animation
-        };
-        
-        const validPos = getValidPosition(breadItem);
-        breadItem.x = validPos.x;
-        breadItem.y = validPos.y;
-        
-        breadItems.push(breadItem);
+    // Check if player is within vision range
+    if (distance <= guard.visionRange) {
+        // Improved line of sight check using ray casting
+        const steps = 10; // Number of points to check along the line
+        for (let i = 1; i <= steps; i++) {
+            const checkX = guard.x + (guard.width / 2) + (dx * i / steps);
+            const checkY = guard.y + (guard.height / 2) + (dy * i / steps);
+            
+            // Check if this point intersects with any obstacle
+            const intersectsObstacle = obstacles.some(obstacle => 
+                checkX >= obstacle.x && 
+                checkX <= obstacle.x + obstacle.width && 
+                checkY >= obstacle.y && 
+                checkY <= obstacle.y + obstacle.height
+            );
+            
+            if (intersectsObstacle) {
+                // Vision is blocked by an obstacle
+                return false;
+            }
+        }
+        return true; // No obstacles blocking line of sight
     }
+    return false;
 }
 
-function drawBreadItems() {
-    breadItems.forEach(bread => {
-        // Regular bread
-        if (!bread.isGold) {
-            ctx.fillStyle = "#d4a76a";
-            ctx.beginPath();
-            ctx.arc(bread.x + 10, bread.y + 10, 10, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Add details to bread
-            ctx.fillStyle = "#b58b4c";
-            ctx.beginPath();
-            ctx.arc(bread.x + 7, bread.y + 8, 2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(bread.x + 13, bread.y + 12, 2, 0, Math.PI * 2);
-            ctx.fill();
-        } 
-        // Gold bread with animation
-        else {
-            // Gold bread animation
-            const pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
-            const glow = Math.abs(Math.sin(Date.now() / 300)) * 10;
-            
-            // Draw glow
-            ctx.fillStyle = `rgba(255, 215, 0, ${0.2 + Math.abs(Math.sin(Date.now() / 400)) * 0.3})`;
-            ctx.beginPath();
-            ctx.arc(bread.x + 10, bread.y + 10, 15 + glow, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Draw gold bread
-            ctx.fillStyle = "#FFD700";
-            ctx.beginPath();
-            ctx.arc(bread.x + 10, bread.y + 10, 10 * pulse, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Add sparkle effect
-            if (Math.random() < 0.1) {
-                const sparkleSize = 2 + Math.random() * 3;
-                const sparkleX = bread.x + 10 + (Math.random() * 20 - 10);
-                const sparkleY = bread.y + 10 + (Math.random() * 20 - 10);
+// Enhance the drawObstacles function for better-looking barriers
+function drawObstacles() {
+    obstacles.forEach((obstacle, index) => {
+        // Create more interesting obstacle designs
+        // Different types of obstacles with unique appearances
+        const type = obstacle.type || (index % 3);
+        
+        switch(type) {
+            case 0: // Wooden crate
+                // Base box
+                ctx.fillStyle = "#8B4513";
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
                 
-                ctx.fillStyle = "#FFFFFF";
+                // Wood grain
+                ctx.strokeStyle = "#5D2906";
+                ctx.lineWidth = 2;
+                
+                // Horizontal planks
+                const plankHeight = obstacle.height / 3;
+                for (let i = 0; i < 3; i++) {
+                    ctx.strokeRect(
+                        obstacle.x, 
+                        obstacle.y + i * plankHeight, 
+                        obstacle.width, 
+                        plankHeight
+                    );
+                }
+                
+                // Nails
+                ctx.fillStyle = "#A9A9A9";
+                const nailPositions = [
+                    {x: obstacle.x + 10, y: obstacle.y + 5},
+                    {x: obstacle.x + obstacle.width - 10, y: obstacle.y + 5},
+                    {x: obstacle.x + 10, y: obstacle.y + obstacle.height - 5},
+                    {x: obstacle.x + obstacle.width - 10, y: obstacle.y + obstacle.height - 5}
+                ];
+                
+                nailPositions.forEach(pos => {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                break;
+                
+            case 1: // Stone wall
+                // Base rectangle
+                ctx.fillStyle = "#808080";
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                
+                // Stone pattern
+                const stoneSize = 10;
+                ctx.strokeStyle = "#696969";
+                ctx.lineWidth = 1;
+                
+                for (let x = 0; x < obstacle.width; x += stoneSize) {
+                    for (let y = 0; y < obstacle.height; y += stoneSize) {
+                        // Random offset for natural look
+                        const offsetX = Math.random() * 2;
+                        const offsetY = Math.random() * 2;
+                        
+                        // Draw stone
+                        ctx.fillStyle = `rgb(${120 + Math.random() * 30}, ${120 + Math.random() * 30}, ${120 + Math.random() * 30})`;
+                        ctx.fillRect(
+                            obstacle.x + x + offsetX, 
+                            obstacle.y + y + offsetY, 
+                            stoneSize - 1, 
+                            stoneSize - 1
+                        );
+                    }
+                }
+                break;
+                
+            case 2: // Metal barrier
+                // Base rectangle
+                ctx.fillStyle = "#515151";
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                
+                // Metallic look
+                ctx.fillStyle = "#626262";
+                ctx.fillRect(obstacle.x + 3, obstacle.y + 3, obstacle.width - 6, obstacle.height - 6);
+                
+                // Rivets
+                ctx.fillStyle = "#7D7D7D";
+                const rivetSize = 4;
+                const rivetOffset = 5;
+                
+                // Corner rivets
+                [
+                    {x: rivetOffset, y: rivetOffset},
+                    {x: obstacle.width - rivetOffset - rivetSize, y: rivetOffset},
+                    {x: rivetOffset, y: obstacle.height - rivetOffset - rivetSize},
+                    {x: obstacle.width - rivetOffset - rivetSize, y: obstacle.height - rivetOffset - rivetSize}
+                ].forEach(pos => {
+                    ctx.fillRect(
+                        obstacle.x + pos.x, 
+                        obstacle.y + pos.y, 
+                        rivetSize, 
+                        rivetSize
+                    );
+                });
+                
+                // Highlight
+                ctx.strokeStyle = "#AAAAAA";
+                ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.arc(sparkleX, sparkleY, sparkleSize, 0, Math.PI * 2);
-                ctx.fill();
-            }
+                ctx.moveTo(obstacle.x + 2, obstacle.y + 2);
+                ctx.lineTo(obstacle.x + obstacle.width - 2, obstacle.y + 2);
+                ctx.stroke();
+                break;
         }
+        
+        // Add shadow for all obstacles
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(obstacle.x + 5, obstacle.y + obstacle.height, obstacle.width, 5);
     });
 }
 
-// ===== ENHANCED SCORING SYSTEM =====
-let totalScore = 0;
-let levelScore = 0;
-let scoreMultiplier = 1;
-let timeBonus = 0;
-let breadCollected = 0;
-let goldBreadCollected = 0;
-let perfectLevelBonus = 100;
-
-function updateScore(points, x, y) {
-    // Update score
-    levelScore += points * scoreMultiplier;
-    totalScore += points * scoreMultiplier;
+// Add a stealth indicator when duck is hidden
+function drawDuck() {
+    const isHidden = !guards.some(guard => guard.canSeePlayer);
     
-    // Show floating score text
-    createFloatingText(`+${points * scoreMultiplier}`, x, y, points > 1 ? "#FFD700" : "#FFFFFF");
+    if (useDuckImage && duckImg.complete) {
+        // Adjust transparency when hidden
+        ctx.globalAlpha = isHidden ? 0.7 : 1;
+        ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
+        ctx.globalAlpha = 1;
+    } else {
+        ctx.fillStyle = isHidden ? "rgba(255, 255, 0, 0.7)" : "yellow";
+        ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
+    }
     
-    // Update UI
-    updateScoreDisplay();
+    // Add stealth indicator
+    if (isHidden) {
+        ctx.fillStyle = "rgba(100, 255, 100, 0.7)";
+        ctx.beginPath();
+        ctx.arc(duck.x + duck.width - 5, duck.y + 5, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
-function createFloatingText(text, x, y, color = "#FFFFFF") {
-    const scorePopup = document.createElement("div");
-    scorePopup.className = "score-popup";
-    scorePopup.innerText = text;
-    scorePopup.style.left = `${x}px`;
-    scorePopup.style.top = `${y}px`;
-    scorePopup.style.color = color;
-    
-    gameContainer.appendChild(scorePopup);
-    
-    // Remove after animation completes
-    setTimeout(() => {
-        gameContainer.removeChild(scorePopup);
-    }, 1000);
-}
+// Add power-ups to the game
+let powerUps = [];
 
-function updateScoreDisplay() {
-    // We'll update this in drawGameInfo
-}
-
-function handleBreadCollision() {
-    breadItems.forEach((bread, index) => {
-        if (checkCollision(duck, bread)) {
-            // Play appropriate sound
-            const soundEffect = bread.isGold ? 
-                document.getElementById("gold-sound") : 
-                document.getElementById("collect-sound");
-                
-            soundEffect.currentTime = 0;
-            soundEffect.play();
-            
-            // Update counters
-            if (bread.isGold) {
-                goldBreadCollected++;
-            } else {
-                breadCollected++;
-            }
-            
-            // Update score
-            updateScore(bread.value, bread.x, bread.y);
-            
-            // Remove collected bread
-            breadItems.splice(index, 1);
-            
-            // Check if level is complete (all bread collected)
-            if (breadItems.length === 0) {
-                completeLevel();
-            }
+function initializePowerUps() {
+    powerUps = [
+        { 
+            x: 200, 
+            y: 150, 
+            width: 25, 
+            height: 25, 
+            type: "speed", 
+            active: false, 
+            duration: 7, // seconds
+            timeLeft: 0 
+        },
+        { 
+            x: 600, 
+            y: 400, 
+            width: 25, 
+            height: 25, 
+            type: "invisible", 
+            active: false, 
+            duration: 5, // seconds
+            timeLeft: 0 
         }
-    });
-}
-
-// ===== SOUND SYSTEM =====
-function initializeSounds() {
-    // Sound elements already added in the HTML
-    
-    // Add volume control
-    const sounds = [
-        "collect-sound", "gold-sound", "level-up-sound", 
-        "alert-sound", "power-up-sound"
     ];
     
-    sounds.forEach(id => {
-        const sound = document.getElementById(id);
-        if (sound) {
-            sound.volume = 0.3; // Adjust default volume
+    // Reposition power-ups to valid locations
+    powerUps.forEach(powerUp => {
+        const validPos = getValidPosition(powerUp);
+        powerUp.x = validPos.x;
+        powerUp.y = validPos.y;
+    });
+}
+
+function drawPowerUps() {
+    powerUps.forEach(powerUp => {
+        if (!powerUp.active) {
+            ctx.save();
+            
+            // Add pulsing effect
+            const pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
+            
+            // Draw power-up based on type
+            if (powerUp.type === "speed") {
+                // Speed boost - lightning bolt
+                ctx.fillStyle = "#FFD700";
+                ctx.beginPath();
+                ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, 
+                      powerUp.width/2 * pulse, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Lightning symbol
+                ctx.fillStyle = "#FFF";
+                ctx.beginPath();
+                ctx.moveTo(powerUp.x + 10, powerUp.y + 5);
+                ctx.lineTo(powerUp.x + 15, powerUp.y + 12);
+                ctx.lineTo(powerUp.x + 11, powerUp.y + 13);
+                ctx.lineTo(powerUp.x + 16, powerUp.y + 22);
+                ctx.lineTo(powerUp.x + 17, powerUp.y + 19);
+                ctx.lineTo(powerUp.x + 20, powerUp.y + 19);
+                ctx.lineTo(powerUp.x + 10, powerUp.y + 5);
+                ctx.fill();
+            } else if (powerUp.type === "invisible") {
+                // Invisibility - eye symbol
+                ctx.fillStyle = "#9370DB";
+                ctx.beginPath();
+                ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, 
+                      powerUp.width/2 * pulse, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Eye symbol
+                ctx.fillStyle = "#FFF";
+                ctx.beginPath();
+                ctx.ellipse(
+                    powerUp.x + powerUp.width/2, 
+                    powerUp.y + powerUp.height/2,
+                    8, 5, 0, 0, Math.PI * 2
+                );
+                ctx.fill();
+                
+                ctx.fillStyle = "#000";
+                ctx.beginPath();
+                ctx.arc(
+                    powerUp.x + powerUp.width/2, 
+                    powerUp.y + powerUp.height/2,
+                    3, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+            
+            ctx.restore();
         }
     });
 }
 
-function playSound(id) {
-    const sound = document.getElementById(id);
-    if (sound) {
-        sound.currentTime = 0;
-        sound.play().catch(e => console.log("Sound play error:", e));
-    }
-}
-
-// ===== LEVEL PROGRESSION =====
-function initializeLevel(level) {
-    currentLevel = level;
-    const config = levelConfig[level];
-    
-    // Reset game state
-    levelScore = 0;
-    breadCollected = 0;
-    goldBreadCollected = 0;
-    timeLeft = config.timeLimit;
-    
-    // Update level indicator
-    const levelIndicator = document.getElementById("level-indicator");
-    if (levelIndicator) {
-        levelIndicator.textContent = `Level ${level}`;
-    }
-    
-    // Reset duck position
-    duck = { 
-        x: 50, 
-        y: 300, 
-        width: 50, 
-        height: 50, 
-        speed: 10, 
-        isInvisible: false
-    };
-    
-    // Generate obstacles based on level
-    obstacles = [];
-    for (let i = 0; i < config.obstacleCount; i++) {
-        const obstacle = {
-            x: Math.random() * (CANVAS_WIDTH - 100),
-            y: Math.random() * (CANVAS_HEIGHT - 100),
-            width: 40 + Math.random() * 60,
-            height: 30 + Math.random() * 80,
-            type: Math.floor(Math.random() * 3)
-        };
-        
-        // Ensure obstacles don't overlap with duck starting position
-        if (
-            obstacle.x < duck.x + duck.width + 50 && 
-            obstacle.x + obstacle.width > duck.x - 50 &&
-            obstacle.y < duck.y + duck.height + 50 && 
-            obstacle.y + obstacle.height > duck.y - 50
-        ) {
-            i--; // Try again
-            continue;
-        }
-        
-        obstacles.push(obstacle);
-    }
-    
-    // Generate guards based on level
-    guards = [];
-    for (let i = 0; i < config.guardCount; i++) {
-        const guard = {
-            x: 400 + (Math.random() * 300),
-            y: 200 + (Math.random() * 300),
-            width: 40,
-            height: 40,
-            speed: config.guardSpeed - 0.5 + Math.random(),
-            canSeePlayer: false,
-            visionRange: config.guardVisionRange - 10 + Math.random() * 20,
-            patrolTargetX: undefined,
-            patrolTargetY: undefined
-        };
-        
-        // Ensure guards don't start too close to player
-        if (
-            guard.x < duck.x + duck.width + 200 && 
-            guard.x + guard.width > duck.x - 200 &&
-            guard.y < duck.y + duck.height + 200 && 
-            guard.y + guard.height > duck.y - 200
-        ) {
-            i--; // Try again
-            continue;
-        }
-        
-        guards.push(guard);
-    }
-    
-    // Initialize bread with gold bread
-    initializeBread();
-    
-    // Initialize power-ups
-    initializePowerUps();
-    
-    // Hide UI elements
-    document.getElementById("level-complete").style.display = "none";
-    document.getElementById("game-complete").style.display = "none";
-    document.getElementById("restart-btn").style.display = "none";
-    
-    // Game is now active
-    gameOver = false;
-}
-
-function completeLevel() {
-    // Calculate time bonus
-    timeBonus = timeLeft * 5;
-    
-    // Calculate perfect level bonus - all gold bread collected
-    const perfectBonus = (goldBreadCollected === Math.floor(levelConfig[currentLevel].breadCount * levelConfig[currentLevel].goldBreadChance)) ? 
-        perfectLevelBonus : 0;
-    
-    // Calculate final level score
-    const finalLevelScore = levelScore + timeBonus + perfectBonus;
-    totalScore += timeBonus + perfectBonus;
-    
-    // Stop the timer
-    gameOver = true;
-    
-    // Show level complete UI
-    const levelComplete = document.getElementById("level-complete");
-    const levelStats = document.getElementById("level-stats");
-    
-    levelStats.innerHTML = `
-        <p>Bread Collected: ${breadCollected + goldBreadCollected}</p>
-        <p>Gold Bread: ${goldBreadCollected}</p>
-        <p>Time Bonus: ${timeBonus}</p>
-        ${perfectBonus > 0 ? `<p>Perfect Bonus: ${perfectBonus}</p>` : ''}
-        <p>Level Score: ${finalLevelScore}</p>
-        <p>Total Score: ${totalScore}</p>
-    `;
-    
-    levelComplete.style.display = "block";
-    
-    // Play level complete sound
-    playSound("level-up-sound");
-    
-    // Setup next level button
-    const nextLevelBtn = document.getElementById("next-level-btn");
-    if (nextLevelBtn) {
-        if (currentLevel < maxLevels) {
-            nextLevelBtn.innerText = "Next Level";
-            nextLevelBtn.onclick = () => {
-                initializeLevel(currentLevel + 1);
-            };
-        } else {
-            nextLevelBtn.innerText = "See Final Score";
-            nextLevelBtn.onclick = () => {
-                completeGame();
-            };
-        }
-    }
-}
-
-function completeGame() {
-    // Hide level complete
-    document.getElementById("level-complete").style.display = "none";
-    
-    // Show game complete
-    const gameComplete = document.getElementById("game-complete");
-    const finalStats = document.getElementById("final-stats");
-    
-    finalStats.innerHTML = `
-        <p>You've completed all ${maxLevels} levels!</p>
-        <p>Final Score: ${totalScore}</p>
-        <p>Thanks for playing Duck Heist!</p>
-    `;
-    
-    gameComplete.style.display = "block";
-    
-    // Setup play again button
-    const playAgainBtn = document.getElementById("play-again-btn");
-    if (playAgainBtn) {
-        playAgainBtn.onclick = () => {
-            // Reset total score
-            totalScore = 0;
-            
-            // Hide game complete
-            gameComplete.style.display = "none";
-            
-            // Start from level 1
-            initializeLevel(1);
-        };
-    }
-}
-
-function endGame(message) {
-    gameOver = true;
-    
-    // Draw semi-transparent overlay
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Draw message box
-    ctx.fillStyle = "#333";
-    ctx.fillRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 100, 500, 200);
-    ctx.strokeStyle = "#ffcc00";
-    ctx.lineWidth = 4;
-    ctx.strokeRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 100, 500, 200);
-    
-    // Draw game over message
-    ctx.fillStyle = "#ffcc00";
-    ctx.font = "bold 36px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(message, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 50);
-    
-    // Draw score
-    ctx.fillStyle = "white";
-    ctx.font = "24px Arial";
-    ctx.fillText(`Level Score: ${levelScore}`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
-    ctx.fillText(`Total Score: ${totalScore}`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 40);
-    
-    // Reset text alignment
-    ctx.textAlign = "left";
-    
-    document.getElementById("restart-btn").style.display = "block";
-}
-
-// Update restart button functionality
-document.getElementById("restart-btn").addEventListener("click", () => {
-    // Keep total score but reset level
-    initializeLevel(currentLevel);
-});
-
-// ===== ENHANCED GAME INFO =====
-function drawGameInfo() {
-    // Draw background for HUD
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(10, 10, 200, 90);
-    ctx.strokeStyle = "#ffcc00";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(10, 10, 200, 90);
-    
-    // Bread score
-    ctx.fillStyle = "white";
-    ctx.font = "bold 20px Arial";
-    ctx.fillText(`Score: ${totalScore}`, 20, 35);
-    
-    // Bread count
-    const breadLeft = breadItems.length;
-    const goldLeft = breadItems.filter(b => b.isGold).length;
-    const regularLeft = breadLeft - goldLeft;
-    
-    ctx.fillText(`Regular: ${regularLeft}`, 20, 60);
-    ctx.fillStyle = "#FFD700";
-    ctx.fillText(`Gold: ${goldLeft}`, 20, 85);
-    
-    // Time left
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(CANVAS_WIDTH - 120, 10, 110, 40);
-    ctx.strokeStyle = "#ffcc00";
-    ctx.strokeRect(CANVAS_WIDTH - 120, 10, 110, 40);
-    
-    ctx.fillStyle = timeLeft <= 10 ? "#ff4444" : "white";
-    ctx.font = "bold 24px Arial";
-    ctx.fillText(`Time: ${timeLeft}`, CANVAS_WIDTH - 110, 37);
-    
-    // Level indicator
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(CANVAS_WIDTH - 120, 60, 110, 40);
-    ctx.strokeStyle = "#ffcc00";
-    ctx.strokeRect(CANVAS_WIDTH - 120, 60, 110, 40);
-    
-    ctx.fillStyle = "#ffcc00";
-    ctx.fillText(`Level: ${currentLevel}`, CANVAS_WIDTH - 110, 87);
-    
-    // Draw game border
-    ctx.strokeStyle = "#ffcc00";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-}
-
-// ===== ENHANCED GUARD AI =====
-// Update the canSeePlayer function for alert sound
-function updateGuardVision() {
-    guards.forEach(guard => {
-        const previouslySpotted = guard.canSeePlayer;
-        guard.canSeePlayer = canSeePlayer(guard);
-        
-        // If guard just spotted player, play alert sound
-        if (!previouslySpotted && guard.canSeePlayer) {
-            playSound("alert-sound");
-        }
-    });
-}
-
-// ===== GAMEPLAY IMPROVEMENTS =====
-// Power-up handling with sound
 function handlePowerUpCollisions() {
     powerUps.forEach(powerUp => {
         if (!powerUp.active && checkCollision(duck, powerUp)) {
-            // Play power-up sound
-            playSound("power-up-sound");
-            
             // Activate power-up
             powerUp.active = true;
             powerUp.timeLeft = powerUp.duration;
@@ -599,14 +287,6 @@ function handlePowerUpCollisions() {
             } else if (powerUp.type === "invisible") {
                 duck.isInvisible = true;
             }
-            
-            // Create floating text
-            createFloatingText(
-                powerUp.type === "speed" ? "Speed Boost!" : "Invisibility!", 
-                powerUp.x, 
-                powerUp.y, 
-                powerUp.type === "speed" ? "#FFD700" : "#9370DB"
-            );
             
             // Start countdown timer
             const powerUpInterval = setInterval(() => {
@@ -633,84 +313,132 @@ function handlePowerUpCollisions() {
     });
 }
 
-// ===== MAIN GAME UPDATES =====
-// Update the updateGame function to handle all new systems
+// Update the canSeePlayer function to respect invisibility power-up
+function canSeePlayer(guard) {
+    // If duck has invisibility power-up, guards can't see
+    if (duck.isInvisible) return false;
+    
+    const dx = duck.x + (duck.width / 2) - (guard.x + (guard.width / 2));
+    const dy = duck.y + (duck.height / 2) - (guard.y + (guard.height / 2));
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Rest of the function remains the same
+    // ...
+}
+
+// Update the updateGame function to include power-ups
 function updateGame() {
     if (gameOver) return;
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     
     drawBackground();
     handleMovement();
-    updateGuardVision();
     moveGuards();
     handleCollisions();
-    handleBreadCollision();
-    handlePowerUpCollisions();
+    handlePowerUpCollisions(); // Add this line
     
     drawObstacles();
-    drawBreadItems();
-    drawPowerUps();
+    drawBread();
+    drawPowerUps(); // Add this line
     drawGuards();
     drawDuck();
     drawGameInfo();
-    drawPowerUpStatus();
+    drawPowerUpStatus(); // Add this line
 }
 
-// Update handleCollisions to work with breadItems array
-function handleCollisions() {
-    // Check guard collisions
-    guards.forEach(guard => {
-        if (checkCollision(duck, guard)) {
-            endGame("Caught by security! Game Over.");
-        }
-    });
-
-    // Obstacle collisions
-    obstacles.forEach(obstacle => {
-        if (checkCollision(duck, obstacle)) {
-            const overlapX = duck.x < obstacle.x ? 
-                duck.x + duck.width - obstacle.x : 
-                obstacle.x + obstacle.width - duck.x;
-            const overlapY = duck.y < obstacle.y ? 
-                duck.y + duck.height - obstacle.y : 
-                obstacle.y + obstacle.height - duck.y;
+// Draw power-up status indicators
+function drawPowerUpStatus() {
+    let y = 80; // Starting y position
+    
+    powerUps.forEach(powerUp => {
+        if (powerUp.active) {
+            // Draw power-up status
+            ctx.fillStyle = "white";
+            ctx.font = "bold 16px Arial";
             
-            if (Math.abs(overlapX) < Math.abs(overlapY)) {
-                duck.x += overlapX > 0 ? -overlapX : Math.abs(overlapX);
-            } else {
-                duck.y += overlapY > 0 ? -overlapY : Math.abs(overlapY);
+            if (powerUp.type === "speed") {
+                ctx.fillText(`Speed Boost: ${powerUp.timeLeft}s`, 20, y);
+                // Draw small icon
+                ctx.fillStyle = "#FFD700";
+                ctx.beginPath();
+                ctx.moveTo(150, y - 5);
+                ctx.lineTo(155, y - 10);
+                ctx.lineTo(151, y - 11);
+                ctx.lineTo(156, y);
+                ctx.lineTo(157, y - 3);
+                ctx.lineTo(160, y - 3);
+                ctx.lineTo(150, y - 5);
+                ctx.fill();
+            } else if (powerUp.type === "invisible") {
+                ctx.fillText(`Invisibility: ${powerUp.timeLeft}s`, 20, y);
+                // Draw small icon
+                ctx.fillStyle = "#9370DB";
+                ctx.beginPath();
+                ctx.arc(155, y - 5, 5, 0, Math.PI * 2);
+                ctx.fill();
             }
+            
+            y += 25; // Increment y position for next status
         }
     });
 }
 
-// Initialize the game with level system
-// Replace your current initialization with this
-document.addEventListener("DOMContentLoaded", function () {
-    // ... (existing setup code)
-    
-    // Initialize sounds
-    initializeSounds();
-    
-    // Start with level 1
-    initializeLevel(1);
-    
-    // Game loop stays the same
-    function gameLoop() {
-        updateGame();
-        requestAnimationFrame(gameLoop);
-    }
-    gameLoop();
-});
+// Initialize power-ups at game start
+function initializeGame() {
+    bread = getValidPosition(bread);
+    obstacles = [
+        { x: 400, y: 200, width: 50, height: 50, type: 0 },
+        { x: 200, y: 400, width: 80, height: 30, type: 1 },
+        { x: 600, y: 100, width: 60, height: 60, type: 2 },
+        { x: 300, y: 300, width: 40, height: 70, type: 0 },
+        { x: 700, y: 300, width: 30, height: 100, type: 1 }
+    ];
+    guards = [
+        { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 120 },
+        { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 130 },
+        { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 125 }
+    ];
+    initializePowerUps(); // Add this line
+}
 
-// Update the timer to include level completion check
-const gameTimer = setInterval(() => {
-    if (!gameOver && timeLeft > 0) {
-        timeLeft--;
-        
-        // If time runs out
-        if (timeLeft <= 0) {
-            endGame("Time's up! Game Over.");
-        }
-    }
-}, 1000);
+// Update the CSS to include a better game styling
+// Add this to your style section:
+/*
+#duck-heist-game {
+    position: relative;
+    width: 100%;
+    max-width: 800px;
+    max-height: 100vh;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+canvas {
+    border: 4px solid #222;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+#restart-btn {
+    padding: 12px 24px;
+    font-size: 20px;
+    background-color: #ffcc00;
+    color: #333;
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+#restart-btn:hover {
+    background-color: #ffdd33;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+*/
