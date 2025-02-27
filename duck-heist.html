@@ -1,591 +1,716 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duck Heist Game</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #222;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            touch-action: none;
-        }
-        #duck-heist-game {
-            position: relative;
-            width: 100%;
-            max-width: 800px;
-            max-height: 100vh;
-        }
-        canvas {
-            border: 4px solid #444;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            height: auto;
-            display: block;
-            margin: 0 auto;
-        }
-        #game-info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            font-family: Arial;
-            font-size: 20px;
-        }
-        #restart-btn {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 10px 20px;
-            font-size: 20px;
-            cursor: pointer;
-            background-color: #ffcc00;
-            border: none;
-            border-radius: 5px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            font-weight: bold;
-        }
-        #restart-btn:hover {
-            background-color: #ffdd33;
-        }
-        #mobile-controls {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            display: none;
-            width: 180px;
-            height: 180px;
-        }
-        @media (max-width: 800px) {
-            #mobile-controls {
-                display: block;
+// ===== LEVEL SYSTEM =====
+let currentLevel = 1;
+const maxLevels = 3;
+let levelConfig = {
+    1: {
+        timeLimit: 60,
+        guardCount: 3,
+        guardSpeed: 3,
+        breadCount: 5,
+        obstacleCount: 5,
+        goldBreadChance: 0.3,
+        guardVisionRange: 120
+    },
+    2: {
+        timeLimit: 50,
+        guardCount: 4,
+        guardSpeed: 3.5,
+        breadCount: 7,
+        obstacleCount: 7,
+        goldBreadChance: 0.4,
+        guardVisionRange: 130
+    },
+    3: {
+        timeLimit: 45,
+        guardCount: 5,
+        guardSpeed: 4,
+        breadCount: 10,
+        obstacleCount: 8,
+        goldBreadChance: 0.5,
+        guardVisionRange: 140
+    }
+};
+
+// Add to the HTML, before the script tag
+// <!-- Add this for the level indicator -->
+// <div id="level-indicator">Level 1</div>
+// <div id="level-complete">
+//     <h2>Level Complete!</h2>
+//     <div id="level-stats"></div>
+//     <button id="next-level-btn">Next Level</button>
+// </div>
+// <div id="game-complete">
+//     <h2>Game Complete!</h2>
+//     <div id="final-stats"></div>
+//     <button id="play-again-btn">Play Again</button>
+// </div>
+// <audio id="collect-sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" preload="auto"></audio>
+// <audio id="gold-sound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+// <audio id="level-up-sound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_cowbell.ogg" preload="auto"></audio>
+// <audio id="alert-sound" src="https://actions.google.com/sounds/v1/alarms/bugle_alert.ogg" preload="auto"></audio>
+// <audio id="power-up-sound" src="https://actions.google.com/sounds/v1/cartoon/siren_whistle.ogg" preload="auto"></audio>
+
+// Add these CSS styles
+/*
+#level-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #ffcc00;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+    font-size: 18px;
+    z-index: 10;
+}
+
+#level-complete, #game-complete {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 20px 30px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 100;
+    border: 3px solid #ffcc00;
+    width: 80%;
+    max-width: 400px;
+}
+
+#level-stats, #final-stats {
+    margin: 15px 0;
+    font-size: 18px;
+    line-height: 1.5;
+}
+
+#next-level-btn, #play-again-btn {
+    background-color: #ffcc00;
+    border: none;
+    color: #333;
+    padding: 10px 20px;
+    font-size: 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+    transition: all 0.2s;
+}
+
+#next-level-btn:hover, #play-again-btn:hover {
+    background-color: #ffdd33;
+    transform: scale(1.05);
+}
+
+.score-popup {
+    position: absolute;
+    color: #ffcc00;
+    font-weight: bold;
+    font-size: 20px;
+    pointer-events: none;
+    animation: float-up 1s forwards;
+    text-shadow: 0px 0px 5px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes float-up {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-50px); opacity: 0; }
+}
+*/
+
+// ===== ENHANCED BREAD SYSTEM WITH GOLD BREAD =====
+function initializeBread() {
+    // Clear existing bread
+    breadItems = [];
+    
+    // Get level config
+    const config = levelConfig[currentLevel];
+    
+    // Generate regular bread
+    for (let i = 0; i < config.breadCount; i++) {
+        const isGoldBread = Math.random() < config.goldBreadChance;
+        const breadItem = {
+            x: 0, 
+            y: 0, 
+            width: 20, 
+            height: 20,
+            isGold: isGoldBread,
+            value: isGoldBread ? 5 : 1,
+            collectTime: 0 // For animation
+        };
+        
+        const validPos = getValidPosition(breadItem);
+        breadItem.x = validPos.x;
+        breadItem.y = validPos.y;
+        
+        breadItems.push(breadItem);
+    }
+}
+
+function drawBreadItems() {
+    breadItems.forEach(bread => {
+        // Regular bread
+        if (!bread.isGold) {
+            ctx.fillStyle = "#d4a76a";
+            ctx.beginPath();
+            ctx.arc(bread.x + 10, bread.y + 10, 10, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add details to bread
+            ctx.fillStyle = "#b58b4c";
+            ctx.beginPath();
+            ctx.arc(bread.x + 7, bread.y + 8, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(bread.x + 13, bread.y + 12, 2, 0, Math.PI * 2);
+            ctx.fill();
+        } 
+        // Gold bread with animation
+        else {
+            // Gold bread animation
+            const pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
+            const glow = Math.abs(Math.sin(Date.now() / 300)) * 10;
+            
+            // Draw glow
+            ctx.fillStyle = `rgba(255, 215, 0, ${0.2 + Math.abs(Math.sin(Date.now() / 400)) * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(bread.x + 10, bread.y + 10, 15 + glow, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw gold bread
+            ctx.fillStyle = "#FFD700";
+            ctx.beginPath();
+            ctx.arc(bread.x + 10, bread.y + 10, 10 * pulse, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Add sparkle effect
+            if (Math.random() < 0.1) {
+                const sparkleSize = 2 + Math.random() * 3;
+                const sparkleX = bread.x + 10 + (Math.random() * 20 - 10);
+                const sparkleY = bread.y + 10 + (Math.random() * 20 - 10);
+                
+                ctx.fillStyle = "#FFFFFF";
+                ctx.beginPath();
+                ctx.arc(sparkleX, sparkleY, sparkleSize, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
-        .control-btn {
-            position: absolute;
-            width: 60px;
-            height: 60px;
-            background-color: rgba(255, 204, 0, 0.5);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            color: white;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        #up-btn {
-            top: 0;
-            left: 60px;
-        }
-        #left-btn {
-            top: 60px;
-            left: 0;
-        }
-        #right-btn {
-            top: 60px;
-            left: 120px;
-        }
-        #down-btn {
-            top: 120px;
-            left: 60px;
-        }
-    </style>
-</head>
-<body>
-    <div id="duck-heist-game">
-        <div id="mobile-controls">
-            <div class="control-btn" id="up-btn">↑</div>
-            <div class="control-btn" id="left-btn">←</div>
-            <div class="control-btn" id="right-btn">→</div>
-            <div class="control-btn" id="down-btn">↓</div>
-        </div>
-    </div>
-    <button id="restart-btn">Restart Game</button>
+    });
+}
 
-    <script>
-        // JavaScript code for the Duck Heist Game
-        document.addEventListener("DOMContentLoaded", function () {
-            const gameContainer = document.getElementById("duck-heist-game");
-            const gameCanvas = document.createElement("canvas");
-            const ctx = gameCanvas.getContext("2d");
-            gameContainer.insertBefore(gameCanvas, gameContainer.firstChild);
+// ===== ENHANCED SCORING SYSTEM =====
+let totalScore = 0;
+let levelScore = 0;
+let scoreMultiplier = 1;
+let timeBonus = 0;
+let breadCollected = 0;
+let goldBreadCollected = 0;
+let perfectLevelBonus = 100;
+
+function updateScore(points, x, y) {
+    // Update score
+    levelScore += points * scoreMultiplier;
+    totalScore += points * scoreMultiplier;
+    
+    // Show floating score text
+    createFloatingText(`+${points * scoreMultiplier}`, x, y, points > 1 ? "#FFD700" : "#FFFFFF");
+    
+    // Update UI
+    updateScoreDisplay();
+}
+
+function createFloatingText(text, x, y, color = "#FFFFFF") {
+    const scorePopup = document.createElement("div");
+    scorePopup.className = "score-popup";
+    scorePopup.innerText = text;
+    scorePopup.style.left = `${x}px`;
+    scorePopup.style.top = `${y}px`;
+    scorePopup.style.color = color;
+    
+    gameContainer.appendChild(scorePopup);
+    
+    // Remove after animation completes
+    setTimeout(() => {
+        gameContainer.removeChild(scorePopup);
+    }, 1000);
+}
+
+function updateScoreDisplay() {
+    // We'll update this in drawGameInfo
+}
+
+function handleBreadCollision() {
+    breadItems.forEach((bread, index) => {
+        if (checkCollision(duck, bread)) {
+            // Play appropriate sound
+            const soundEffect = bread.isGold ? 
+                document.getElementById("gold-sound") : 
+                document.getElementById("collect-sound");
+                
+            soundEffect.currentTime = 0;
+            soundEffect.play();
             
-            // Set initial canvas dimensions
-            const CANVAS_WIDTH = 800;
-            const CANVAS_HEIGHT = 600;
-            gameCanvas.width = CANVAS_WIDTH;
-            gameCanvas.height = CANVAS_HEIGHT;
-
-            // Handle responsive scaling
-            function resizeCanvas() {
-                const containerWidth = gameContainer.clientWidth;
-                const scale = containerWidth / CANVAS_WIDTH;
-                gameCanvas.style.width = containerWidth + "px";
-                gameCanvas.style.height = (CANVAS_HEIGHT * scale) + "px";
+            // Update counters
+            if (bread.isGold) {
+                goldBreadCollected++;
+            } else {
+                breadCollected++;
             }
             
-            window.addEventListener('resize', resizeCanvas);
-            resizeCanvas();
+            // Update score
+            updateScore(bread.value, bread.x, bread.y);
+            
+            // Remove collected bread
+            breadItems.splice(index, 1);
+            
+            // Check if level is complete (all bread collected)
+            if (breadItems.length === 0) {
+                completeLevel();
+            }
+        }
+    });
+}
 
-            // Load duck image from the provided URL
-            const duckImg = new Image();
-            duckImg.src = "https://imgur.com/qWaySbp.png";
-            let useDuckImage = true;
-            duckImg.onerror = () => useDuckImage = false;
+// ===== SOUND SYSTEM =====
+function initializeSounds() {
+    // Sound elements already added in the HTML
+    
+    // Add volume control
+    const sounds = [
+        "collect-sound", "gold-sound", "level-up-sound", 
+        "alert-sound", "power-up-sound"
+    ];
+    
+    sounds.forEach(id => {
+        const sound = document.getElementById(id);
+        if (sound) {
+            sound.volume = 0.3; // Adjust default volume
+        }
+    });
+}
 
-            // Game background
-            const bgColor = "#3a7d44";
+function playSound(id) {
+    const sound = document.getElementById(id);
+    if (sound) {
+        sound.currentTime = 0;
+        sound.play().catch(e => console.log("Sound play error:", e));
+    }
+}
 
-            // Game state
-            let duck = { x: 50, y: 300, width: 50, height: 50, speed: 10 };
-            let bread = { x: 0, y: 0, width: 20, height: 20 };
-            let guards = [];
-            let obstacles = [];
-            let score = 0;
-            let timeLeft = 60;
-            let gameOver = false;
-            let keys = {};
-            let mobileControls = {
-                up: false,
-                down: false,
-                left: false,
-                right: false
+// ===== LEVEL PROGRESSION =====
+function initializeLevel(level) {
+    currentLevel = level;
+    const config = levelConfig[level];
+    
+    // Reset game state
+    levelScore = 0;
+    breadCollected = 0;
+    goldBreadCollected = 0;
+    timeLeft = config.timeLimit;
+    
+    // Update level indicator
+    const levelIndicator = document.getElementById("level-indicator");
+    if (levelIndicator) {
+        levelIndicator.textContent = `Level ${level}`;
+    }
+    
+    // Reset duck position
+    duck = { 
+        x: 50, 
+        y: 300, 
+        width: 50, 
+        height: 50, 
+        speed: 10, 
+        isInvisible: false
+    };
+    
+    // Generate obstacles based on level
+    obstacles = [];
+    for (let i = 0; i < config.obstacleCount; i++) {
+        const obstacle = {
+            x: Math.random() * (CANVAS_WIDTH - 100),
+            y: Math.random() * (CANVAS_HEIGHT - 100),
+            width: 40 + Math.random() * 60,
+            height: 30 + Math.random() * 80,
+            type: Math.floor(Math.random() * 3)
+        };
+        
+        // Ensure obstacles don't overlap with duck starting position
+        if (
+            obstacle.x < duck.x + duck.width + 50 && 
+            obstacle.x + obstacle.width > duck.x - 50 &&
+            obstacle.y < duck.y + duck.height + 50 && 
+            obstacle.y + obstacle.height > duck.y - 50
+        ) {
+            i--; // Try again
+            continue;
+        }
+        
+        obstacles.push(obstacle);
+    }
+    
+    // Generate guards based on level
+    guards = [];
+    for (let i = 0; i < config.guardCount; i++) {
+        const guard = {
+            x: 400 + (Math.random() * 300),
+            y: 200 + (Math.random() * 300),
+            width: 40,
+            height: 40,
+            speed: config.guardSpeed - 0.5 + Math.random(),
+            canSeePlayer: false,
+            visionRange: config.guardVisionRange - 10 + Math.random() * 20,
+            patrolTargetX: undefined,
+            patrolTargetY: undefined
+        };
+        
+        // Ensure guards don't start too close to player
+        if (
+            guard.x < duck.x + duck.width + 200 && 
+            guard.x + guard.width > duck.x - 200 &&
+            guard.y < duck.y + duck.height + 200 && 
+            guard.y + guard.height > duck.y - 200
+        ) {
+            i--; // Try again
+            continue;
+        }
+        
+        guards.push(guard);
+    }
+    
+    // Initialize bread with gold bread
+    initializeBread();
+    
+    // Initialize power-ups
+    initializePowerUps();
+    
+    // Hide UI elements
+    document.getElementById("level-complete").style.display = "none";
+    document.getElementById("game-complete").style.display = "none";
+    document.getElementById("restart-btn").style.display = "none";
+    
+    // Game is now active
+    gameOver = false;
+}
+
+function completeLevel() {
+    // Calculate time bonus
+    timeBonus = timeLeft * 5;
+    
+    // Calculate perfect level bonus - all gold bread collected
+    const perfectBonus = (goldBreadCollected === Math.floor(levelConfig[currentLevel].breadCount * levelConfig[currentLevel].goldBreadChance)) ? 
+        perfectLevelBonus : 0;
+    
+    // Calculate final level score
+    const finalLevelScore = levelScore + timeBonus + perfectBonus;
+    totalScore += timeBonus + perfectBonus;
+    
+    // Stop the timer
+    gameOver = true;
+    
+    // Show level complete UI
+    const levelComplete = document.getElementById("level-complete");
+    const levelStats = document.getElementById("level-stats");
+    
+    levelStats.innerHTML = `
+        <p>Bread Collected: ${breadCollected + goldBreadCollected}</p>
+        <p>Gold Bread: ${goldBreadCollected}</p>
+        <p>Time Bonus: ${timeBonus}</p>
+        ${perfectBonus > 0 ? `<p>Perfect Bonus: ${perfectBonus}</p>` : ''}
+        <p>Level Score: ${finalLevelScore}</p>
+        <p>Total Score: ${totalScore}</p>
+    `;
+    
+    levelComplete.style.display = "block";
+    
+    // Play level complete sound
+    playSound("level-up-sound");
+    
+    // Setup next level button
+    const nextLevelBtn = document.getElementById("next-level-btn");
+    if (nextLevelBtn) {
+        if (currentLevel < maxLevels) {
+            nextLevelBtn.innerText = "Next Level";
+            nextLevelBtn.onclick = () => {
+                initializeLevel(currentLevel + 1);
             };
+        } else {
+            nextLevelBtn.innerText = "See Final Score";
+            nextLevelBtn.onclick = () => {
+                completeGame();
+            };
+        }
+    }
+}
 
-            // Initialize game objects
-            function initializeGame() {
-                bread = getValidPosition(bread);
-                obstacles = [
-                    { x: 400, y: 200, width: 50, height: 50 },
-                    { x: 200, y: 400, width: 80, height: 30 },
-                    { x: 600, y: 100, width: 60, height: 60 },
-                    { x: 300, y: 300, width: 40, height: 70 },
-                    { x: 700, y: 300, width: 30, height: 100 }
-                ];
-                guards = [
-                    { x: 700, y: 500, width: 40, height: 40, speed: 3, canSeePlayer: false, visionRange: 150 },
-                    { x: 100, y: 500, width: 40, height: 40, speed: 3.5, canSeePlayer: false, visionRange: 170 },
-                    { x: 400, y: 100, width: 40, height: 40, speed: 3.2, canSeePlayer: false, visionRange: 160 }
-                ];
+function completeGame() {
+    // Hide level complete
+    document.getElementById("level-complete").style.display = "none";
+    
+    // Show game complete
+    const gameComplete = document.getElementById("game-complete");
+    const finalStats = document.getElementById("final-stats");
+    
+    finalStats.innerHTML = `
+        <p>You've completed all ${maxLevels} levels!</p>
+        <p>Final Score: ${totalScore}</p>
+        <p>Thanks for playing Duck Heist!</p>
+    `;
+    
+    gameComplete.style.display = "block";
+    
+    // Setup play again button
+    const playAgainBtn = document.getElementById("play-again-btn");
+    if (playAgainBtn) {
+        playAgainBtn.onclick = () => {
+            // Reset total score
+            totalScore = 0;
+            
+            // Hide game complete
+            gameComplete.style.display = "none";
+            
+            // Start from level 1
+            initializeLevel(1);
+        };
+    }
+}
+
+function endGame(message) {
+    gameOver = true;
+    
+    // Draw semi-transparent overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Draw message box
+    ctx.fillStyle = "#333";
+    ctx.fillRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 100, 500, 200);
+    ctx.strokeStyle = "#ffcc00";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 100, 500, 200);
+    
+    // Draw game over message
+    ctx.fillStyle = "#ffcc00";
+    ctx.font = "bold 36px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(message, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 50);
+    
+    // Draw score
+    ctx.fillStyle = "white";
+    ctx.font = "24px Arial";
+    ctx.fillText(`Level Score: ${levelScore}`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    ctx.fillText(`Total Score: ${totalScore}`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 40);
+    
+    // Reset text alignment
+    ctx.textAlign = "left";
+    
+    document.getElementById("restart-btn").style.display = "block";
+}
+
+// Update restart button functionality
+document.getElementById("restart-btn").addEventListener("click", () => {
+    // Keep total score but reset level
+    initializeLevel(currentLevel);
+});
+
+// ===== ENHANCED GAME INFO =====
+function drawGameInfo() {
+    // Draw background for HUD
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(10, 10, 200, 90);
+    ctx.strokeStyle = "#ffcc00";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, 200, 90);
+    
+    // Bread score
+    ctx.fillStyle = "white";
+    ctx.font = "bold 20px Arial";
+    ctx.fillText(`Score: ${totalScore}`, 20, 35);
+    
+    // Bread count
+    const breadLeft = breadItems.length;
+    const goldLeft = breadItems.filter(b => b.isGold).length;
+    const regularLeft = breadLeft - goldLeft;
+    
+    ctx.fillText(`Regular: ${regularLeft}`, 20, 60);
+    ctx.fillStyle = "#FFD700";
+    ctx.fillText(`Gold: ${goldLeft}`, 20, 85);
+    
+    // Time left
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(CANVAS_WIDTH - 120, 10, 110, 40);
+    ctx.strokeStyle = "#ffcc00";
+    ctx.strokeRect(CANVAS_WIDTH - 120, 10, 110, 40);
+    
+    ctx.fillStyle = timeLeft <= 10 ? "#ff4444" : "white";
+    ctx.font = "bold 24px Arial";
+    ctx.fillText(`Time: ${timeLeft}`, CANVAS_WIDTH - 110, 37);
+    
+    // Level indicator
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(CANVAS_WIDTH - 120, 60, 110, 40);
+    ctx.strokeStyle = "#ffcc00";
+    ctx.strokeRect(CANVAS_WIDTH - 120, 60, 110, 40);
+    
+    ctx.fillStyle = "#ffcc00";
+    ctx.fillText(`Level: ${currentLevel}`, CANVAS_WIDTH - 110, 87);
+    
+    // Draw game border
+    ctx.strokeStyle = "#ffcc00";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+}
+
+// ===== ENHANCED GUARD AI =====
+// Update the canSeePlayer function for alert sound
+function updateGuardVision() {
+    guards.forEach(guard => {
+        const previouslySpotted = guard.canSeePlayer;
+        guard.canSeePlayer = canSeePlayer(guard);
+        
+        // If guard just spotted player, play alert sound
+        if (!previouslySpotted && guard.canSeePlayer) {
+            playSound("alert-sound");
+        }
+    });
+}
+
+// ===== GAMEPLAY IMPROVEMENTS =====
+// Power-up handling with sound
+function handlePowerUpCollisions() {
+    powerUps.forEach(powerUp => {
+        if (!powerUp.active && checkCollision(duck, powerUp)) {
+            // Play power-up sound
+            playSound("power-up-sound");
+            
+            // Activate power-up
+            powerUp.active = true;
+            powerUp.timeLeft = powerUp.duration;
+            
+            // Apply power-up effect
+            if (powerUp.type === "speed") {
+                duck.originalSpeed = duck.speed;
+                duck.speed = duck.speed * 1.6;
+            } else if (powerUp.type === "invisible") {
+                duck.isInvisible = true;
             }
-
-            // Get valid position for bread
-            function getValidPosition(obj) {
-                let newPos;
-                do {
-                    newPos = {
-                        x: Math.random() * (CANVAS_WIDTH - obj.width),
-                        y: Math.random() * (CANVAS_HEIGHT - obj.height),
-                        width: obj.width,
-                        height: obj.height
-                    };
-                } while (isColliding(newPos));
-                return newPos;
-            }
-
-            // Check collisions with any object
-            function isColliding(obj) {
-                return [...obstacles, ...guards].some(item => checkCollision(obj, item));
-            }
-
-            function checkCollision(a, b) {
-                return a.x < b.x + b.width &&
-                       a.x + a.width > b.x &&
-                       a.y < b.y + b.height &&
-                       a.y + a.height > b.y;
-            }
-
-            // Check if guard can see player
-            function canSeePlayer(guard) {
-                const dx = duck.x - guard.x;
-                const dy = duck.y - guard.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // Check if player is within vision range
-                if (distance <= guard.visionRange) {
-                    // Check for obstacles blocking line of sight
-                    const lineOfSight = {
-                        x: Math.min(guard.x, duck.x),
-                        y: Math.min(guard.y, duck.y),
-                        width: Math.abs(dx),
-                        height: Math.abs(dy)
-                    };
+            
+            // Create floating text
+            createFloatingText(
+                powerUp.type === "speed" ? "Speed Boost!" : "Invisibility!", 
+                powerUp.x, 
+                powerUp.y, 
+                powerUp.type === "speed" ? "#FFD700" : "#9370DB"
+            );
+            
+            // Start countdown timer
+            const powerUpInterval = setInterval(() => {
+                if (gameOver || powerUp.timeLeft <= 0) {
+                    // Deactivate power-up
+                    if (powerUp.type === "speed") {
+                        duck.speed = duck.originalSpeed;
+                    } else if (powerUp.type === "invisible") {
+                        duck.isInvisible = false;
+                    }
                     
-                    // Simple line of sight check - not perfect but works for this game
-                    const canSee = !obstacles.some(obstacle => checkCollision(obstacle, lineOfSight));
-                    return canSee;
-                }
-                return false;
-            }
-
-            // Drawing functions
-            function drawDuck() {
-                if (useDuckImage && duckImg.complete) {
-                    ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
+                    // Reset power-up
+                    powerUp.active = false;
+                    const validPos = getValidPosition(powerUp);
+                    powerUp.x = validPos.x;
+                    powerUp.y = validPos.y;
+                    
+                    clearInterval(powerUpInterval);
                 } else {
-                    ctx.fillStyle = "yellow";
-                    ctx.fillRect(duck.x, duck.y, duck.width, duck.height);
-                }
-            }
-
-            function drawBread() {
-                ctx.fillStyle = "#d4a76a";
-                ctx.beginPath();
-                ctx.arc(bread.x + 10, bread.y + 10, 10, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Add details to bread
-                ctx.fillStyle = "#b58b4c";
-                ctx.beginPath();
-                ctx.arc(bread.x + 7, bread.y + 8, 2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(bread.x + 13, bread.y + 12, 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            function drawGuards() {
-                guards.forEach(guard => {
-                    // Draw guard body
-                    ctx.fillStyle = guard.canSeePlayer ? "#ff4444" : "#884444";
-                    ctx.beginPath();
-                    ctx.arc(guard.x + 20, guard.y + 20, 20, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    // Draw guard vision range as a transparent circle
-                    ctx.beginPath();
-                    ctx.arc(guard.x + 20, guard.y + 20, guard.visionRange, 0, Math.PI * 2);
-                    ctx.fillStyle = guard.canSeePlayer ? "rgba(255, 100, 100, 0.1)" : "rgba(200, 100, 100, 0.05)";
-                    ctx.fill();
-                    
-                    // Draw eyes
-                    ctx.fillStyle = "white";
-                    ctx.beginPath();
-                    ctx.arc(guard.x + 15, guard.y + 15, 5, 0, Math.PI * 2);
-                    ctx.arc(guard.x + 25, guard.y + 15, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    // Draw pupils (looking at player when in sight)
-                    ctx.fillStyle = "black";
-                    const angle = Math.atan2(duck.y - guard.y, duck.x - guard.x);
-                    const eyeOffsetX = guard.canSeePlayer ? 2 * Math.cos(angle) : 0;
-                    const eyeOffsetY = guard.canSeePlayer ? 2 * Math.sin(angle) : 0;
-                    
-                    ctx.beginPath();
-                    ctx.arc(guard.x + 15 + eyeOffsetX, guard.y + 15 + eyeOffsetY, 2, 0, Math.PI * 2);
-                    ctx.arc(guard.x + 25 + eyeOffsetX, guard.y + 15 + eyeOffsetY, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    // Draw alert symbol if guard sees player
-                    if (guard.canSeePlayer) {
-                        ctx.fillStyle = "yellow";
-                        ctx.beginPath();
-                        ctx.moveTo(guard.x + 20, guard.y - 10);
-                        ctx.lineTo(guard.x + 10, guard.y - 30);
-                        ctx.lineTo(guard.x + 30, guard.y - 30);
-                        ctx.fill();
-                        
-                        ctx.fillStyle = "black";
-                        ctx.beginPath();
-                        ctx.arc(guard.x + 20, guard.y - 20, 2, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                });
-            }
-
-            function drawObstacles() {
-                obstacles.forEach((obstacle, index) => {
-                    // Different color variations for obstacles
-                    const colors = ["#555", "#666", "#777", "#444", "#505050"];
-                    ctx.fillStyle = colors[index % colors.length];
-                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-                    
-                    // Add some texture
-                    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-                    for (let i = 0; i < 3; i++) {
-                        const dotX = obstacle.x + Math.random() * obstacle.width;
-                        const dotY = obstacle.y + Math.random() * obstacle.height;
-                        ctx.beginPath();
-                        ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                });
-            }
-
-            function drawGameInfo() {
-                // Bread score
-                ctx.fillStyle = "white";
-                ctx.font = "bold 24px Arial";
-                ctx.fillText(`Bread: ${score}`, 20, 40);
-                
-                // Time left
-                ctx.fillStyle = timeLeft <= 10 ? "#ff4444" : "white";
-                ctx.font = "bold 24px Arial";
-                ctx.fillText(`Time: ${timeLeft}`, CANVAS_WIDTH - 120, 40);
-                
-                // Draw game border
-                ctx.strokeStyle = "#ffcc00";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            }
-
-            // Movement and collision handling
-            function handleMovement() {
-                // WASD keys only (removed arrow keys and touch movement)
-                let movingX = 0, movingY = 0;
-                
-                // WASD only for keyboard
-                if (keys["w"] || keys["W"] || mobileControls.up) movingY--;
-                if (keys["s"] || keys["S"] || mobileControls.down) movingY++;
-                if (keys["a"] || keys["A"] || mobileControls.left) movingX--;
-                if (keys["d"] || keys["D"] || mobileControls.right) movingX++;
-
-                // Normalize movement
-                if (movingX !== 0 || movingY !== 0) {
-                    const distance = Math.sqrt(movingX ** 2 + movingY ** 2);
-                    duck.x += (movingX / distance) * duck.speed;
-                    duck.y += (movingY / distance) * duck.speed;
-                }
-
-                // Keep duck in bounds
-                duck.x = Math.max(0, Math.min(CANVAS_WIDTH - duck.width, duck.x));
-                duck.y = Math.max(0, Math.min(CANVAS_HEIGHT - duck.height, duck.y));
-            }
-
-            function handleCollisions() {
-                // Check bread collision
-                if (checkCollision(duck, bread)) {
-                    score++;
-                    bread = getValidPosition(bread);
-                }
-
-                // Check guard collisions
-                guards.forEach(guard => {
-                    if (checkCollision(duck, guard)) {
-                        endGame("Caught by security! Game Over.");
-                    }
-                });
-
-                // Obstacle collisions
-                obstacles.forEach(obstacle => {
-                    if (checkCollision(duck, obstacle)) {
-                        const overlapX = duck.x < obstacle.x ? 
-                            duck.x + duck.width - obstacle.x : 
-                            obstacle.x + obstacle.width - duck.x;
-                        const overlapY = duck.y < obstacle.y ? 
-                            duck.y + duck.height - obstacle.y : 
-                            obstacle.y + obstacle.height - duck.y;
-                        
-                        if (Math.abs(overlapX) < Math.abs(overlapY)) {
-                            duck.x += overlapX > 0 ? -overlapX : Math.abs(overlapX);
-                        } else {
-                            duck.y += overlapY > 0 ? -overlapY : Math.abs(overlapY);
-                        }
-                    }
-                });
-            }
-
-            function moveGuards() {
-                guards.forEach(guard => {
-                    // Check if guard can see player
-                    guard.canSeePlayer = canSeePlayer(guard);
-                    
-                    // Only move toward player if guard can see them
-                    if (guard.canSeePlayer) {
-                        const dx = duck.x - guard.x;
-                        const dy = duck.y - guard.y;
-                        const distance = Math.sqrt(dx ** 2 + dy ** 2);
-                        
-                        if (distance > 0) {
-                            guard.x += (dx / distance) * guard.speed;
-                            guard.y += (dy / distance) * guard.speed;
-                        }
-                    } else {
-                        // Patrol randomly when not seeing player
-                        if (Math.random() < 0.02) {
-                            guard.patrolTargetX = Math.random() * CANVAS_WIDTH;
-                            guard.patrolTargetY = Math.random() * CANVAS_HEIGHT;
-                        }
-                        
-                        if (guard.patrolTargetX !== undefined) {
-                            const dx = guard.patrolTargetX - guard.x;
-                            const dy = guard.patrolTargetY - guard.y;
-                            const distance = Math.sqrt(dx ** 2 + dy ** 2);
-                            
-                            if (distance > 5) {
-                                guard.x += (dx / distance) * (guard.speed * 0.5);
-                                guard.y += (dy / distance) * (guard.speed * 0.5);
-                            }
-                        }
-                    }
-
-                    // Keep guards in bounds
-                    guard.x = Math.max(0, Math.min(CANVAS_WIDTH - guard.width, guard.x));
-                    guard.y = Math.max(0, Math.min(CANVAS_HEIGHT - guard.height, guard.y));
-                });
-            }
-
-            function endGame(message) {
-                gameOver = true;
-                
-                // Draw semi-transparent overlay
-                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-                
-                // Draw message box
-                ctx.fillStyle = "#333";
-                ctx.fillRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 80, 500, 160);
-                ctx.strokeStyle = "#ffcc00";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(CANVAS_WIDTH/2 - 250, CANVAS_HEIGHT/2 - 80, 500, 160);
-                
-                // Draw game over message
-                ctx.fillStyle = "#ffcc00";
-                ctx.font = "bold 36px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText(message, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 30);
-                
-                // Draw score
-                ctx.fillStyle = "white";
-                ctx.font = "24px Arial";
-                ctx.fillText(`Final Score: ${score} bread`, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 20);
-                
-                // Reset text alignment
-                ctx.textAlign = "left";
-                
-                document.getElementById("restart-btn").style.display = "block";
-            }
-
-            function drawBackground() {
-                // Draw background
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-                
-                // Draw grid pattern
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-                ctx.lineWidth = 1;
-                
-                const gridSize = 40;
-                for (let x = 0; x < CANVAS_WIDTH; x += gridSize) {
-                    ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, CANVAS_HEIGHT);
-                    ctx.stroke();
-                }
-                
-                for (let y = 0; y < CANVAS_HEIGHT; y += gridSize) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(CANVAS_WIDTH, y);
-                    ctx.stroke();
-                }
-            }
-
-            function updateGame() {
-                if (gameOver) return;
-                ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-                
-                drawBackground();
-                handleMovement();
-                moveGuards();
-                handleCollisions();
-                
-                drawObstacles();
-                drawBread();
-                drawGuards();
-                drawDuck();
-                drawGameInfo();
-            }
-
-            // Set up mobile controls
-            const upBtn = document.getElementById("up-btn");
-            const downBtn = document.getElementById("down-btn");
-            const leftBtn = document.getElementById("left-btn");
-            const rightBtn = document.getElementById("right-btn");
-
-            // Touch event handlers for mobile controls
-            function setupMobileButton(button, direction) {
-                // Handle touch start
-                button.addEventListener("touchstart", function(e) {
-                    e.preventDefault();
-                    mobileControls[direction] = true;
-                });
-                
-                // Handle touch end
-                button.addEventListener("touchend", function(e) {
-                    e.preventDefault();
-                    mobileControls[direction] = false;
-                });
-                
-                // Handle touch cancel
-                button.addEventListener("touchcancel", function(e) {
-                    e.preventDefault();
-                    mobileControls[direction] = false;
-                });
-                
-                // Also handle mouse events for testing on desktop
-                button.addEventListener("mousedown", function(e) {
-                    e.preventDefault();
-                    mobileControls[direction] = true;
-                });
-                
-                button.addEventListener("mouseup", function(e) {
-                    e.preventDefault();
-                    mobileControls[direction] = false;
-                });
-            }
-
-            setupMobileButton(upBtn, "up");
-            setupMobileButton(downBtn, "down");
-            setupMobileButton(leftBtn, "left");
-            setupMobileButton(rightBtn, "right");
-
-            // Keyboard event listeners
-            window.addEventListener("keydown", e => {
-                keys[e.key] = true;
-                // Prevent keys from scrolling the page
-                if (["w", "W", "a", "A", "s", "S", "d", "D", " "].includes(e.key)) {
-                    e.preventDefault();
-                }
-            });
-            window.addEventListener("keyup", e => keys[e.key] = false);
-
-            // Removed mouse/touch events for game canvas movement
-
-            const gameTimer = setInterval(() => {
-                if (!gameOver && timeLeft-- <= 0) {
-                    clearInterval(gameTimer);
-                    endGame("Time's up! Game Over.");
+                    powerUp.timeLeft--;
                 }
             }, 1000);
+        }
+    });
+}
 
-            document.getElementById("restart-btn").addEventListener("click", () => {
-                gameOver = false;
-                score = 0;
-                timeLeft = 60;
-                duck = { x: 50, y: 300, width: 50, height: 50, speed: 10 };
-                initializeGame();
-                document.getElementById("restart-btn").style.display = "none";
-            });
+// ===== MAIN GAME UPDATES =====
+// Update the updateGame function to handle all new systems
+function updateGame() {
+    if (gameOver) return;
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    drawBackground();
+    handleMovement();
+    updateGuardVision();
+    moveGuards();
+    handleCollisions();
+    handleBreadCollision();
+    handlePowerUpCollisions();
+    
+    drawObstacles();
+    drawBreadItems();
+    drawPowerUps();
+    drawGuards();
+    drawDuck();
+    drawGameInfo();
+    drawPowerUpStatus();
+}
 
-            // Start the game
-            initializeGame();
-            function gameLoop() {
-                updateGame();
-                requestAnimationFrame(gameLoop);
+// Update handleCollisions to work with breadItems array
+function handleCollisions() {
+    // Check guard collisions
+    guards.forEach(guard => {
+        if (checkCollision(duck, guard)) {
+            endGame("Caught by security! Game Over.");
+        }
+    });
+
+    // Obstacle collisions
+    obstacles.forEach(obstacle => {
+        if (checkCollision(duck, obstacle)) {
+            const overlapX = duck.x < obstacle.x ? 
+                duck.x + duck.width - obstacle.x : 
+                obstacle.x + obstacle.width - duck.x;
+            const overlapY = duck.y < obstacle.y ? 
+                duck.y + duck.height - obstacle.y : 
+                obstacle.y + obstacle.height - duck.y;
+            
+            if (Math.abs(overlapX) < Math.abs(overlapY)) {
+                duck.x += overlapX > 0 ? -overlapX : Math.abs(overlapX);
+            } else {
+                duck.y += overlapY > 0 ? -overlapY : Math.abs(overlapY);
             }
-            gameLoop();
-        });
-    </script>
-</body>
-</html>
+        }
+    });
+}
+
+// Initialize the game with level system
+// Replace your current initialization with this
+document.addEventListener("DOMContentLoaded", function () {
+    // ... (existing setup code)
+    
+    // Initialize sounds
+    initializeSounds();
+    
+    // Start with level 1
+    initializeLevel(1);
+    
+    // Game loop stays the same
+    function gameLoop() {
+        updateGame();
+        requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+});
+
+// Update the timer to include level completion check
+const gameTimer = setInterval(() => {
+    if (!gameOver && timeLeft > 0) {
+        timeLeft--;
+        
+        // If time runs out
+        if (timeLeft <= 0) {
+            endGame("Time's up! Game Over.");
+        }
+    }
+}, 1000);
