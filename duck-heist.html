@@ -57,10 +57,9 @@
             background-color: #ffdd33;
         }
         #mobile-controls {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            right: 20px;
             display: none;
             width: 180px;
             height: 180px;
@@ -155,8 +154,6 @@
             let score = 0;
             let timeLeft = 60;
             let gameOver = false;
-            let targetX = duck.x;
-            let targetY = duck.y;
             let keys = {};
             let mobileControls = {
                 up: false,
@@ -344,23 +341,14 @@
 
             // Movement and collision handling
             function handleMovement() {
-                // Keyboard and mobile movement
+                // WASD keys only (removed arrow keys and touch movement)
                 let movingX = 0, movingY = 0;
                 
-                // WASD and Arrow keys
-                if (keys["ArrowUp"] || keys["w"] || keys["W"] || mobileControls.up) movingY--;
-                if (keys["ArrowDown"] || keys["s"] || keys["S"] || mobileControls.down) movingY++;
-                if (keys["ArrowLeft"] || keys["a"] || keys["A"] || mobileControls.left) movingX--;
-                if (keys["ArrowRight"] || keys["d"] || keys["D"] || mobileControls.right) movingX++;
-
-                // Touch movement (for devices without visible controls)
-                const dx = targetX - duck.x;
-                const dy = targetY - duck.y;
-                const touchDistance = Math.sqrt(dx ** 2 + dy ** 2);
-                if (touchDistance > 5) { // Added threshold to prevent jitter
-                    movingX += dx / touchDistance;
-                    movingY += dy / touchDistance;
-                }
+                // WASD only for keyboard
+                if (keys["w"] || keys["W"] || mobileControls.up) movingY--;
+                if (keys["s"] || keys["S"] || mobileControls.down) movingY++;
+                if (keys["a"] || keys["A"] || mobileControls.left) movingX--;
+                if (keys["d"] || keys["D"] || mobileControls.right) movingX++;
 
                 // Normalize movement
                 if (movingX !== 0 || movingY !== 0) {
@@ -565,55 +553,14 @@
             // Keyboard event listeners
             window.addEventListener("keydown", e => {
                 keys[e.key] = true;
-                // Prevent arrow keys from scrolling the page
-                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                // Prevent keys from scrolling the page
+                if (["w", "W", "a", "A", "s", "S", "d", "D", " "].includes(e.key)) {
                     e.preventDefault();
                 }
             });
             window.addEventListener("keyup", e => keys[e.key] = false);
 
-            // Mouse/touch events for canvas
-            gameCanvas.addEventListener("mousedown", e => {
-                if (!gameOver) {
-                    const rect = gameCanvas.getBoundingClientRect();
-                    const scaleX = gameCanvas.width / rect.width;
-                    const scaleY = gameCanvas.height / rect.height;
-                    targetX = (e.clientX - rect.left) * scaleX;
-                    targetY = (e.clientY - rect.top) * scaleY;
-                }
-            });
-
-            gameCanvas.addEventListener("mousemove", e => {
-                if (!gameOver && e.buttons === 1) {
-                    const rect = gameCanvas.getBoundingClientRect();
-                    const scaleX = gameCanvas.width / rect.width;
-                    const scaleY = gameCanvas.height / rect.height;
-                    targetX = (e.clientX - rect.left) * scaleX;
-                    targetY = (e.clientY - rect.top) * scaleY;
-                }
-            });
-
-            gameCanvas.addEventListener("touchstart", e => {
-                if (!gameOver) {
-                    e.preventDefault();
-                    const rect = gameCanvas.getBoundingClientRect();
-                    const scaleX = gameCanvas.width / rect.width;
-                    const scaleY = gameCanvas.height / rect.height;
-                    targetX = (e.touches[0].clientX - rect.left) * scaleX;
-                    targetY = (e.touches[0].clientY - rect.top) * scaleY;
-                }
-            });
-
-            gameCanvas.addEventListener("touchmove", e => {
-                if (!gameOver) {
-                    e.preventDefault();
-                    const rect = gameCanvas.getBoundingClientRect();
-                    const scaleX = gameCanvas.width / rect.width;
-                    const scaleY = gameCanvas.height / rect.height;
-                    targetX = (e.touches[0].clientX - rect.left) * scaleX;
-                    targetY = (e.touches[0].clientY - rect.top) * scaleY;
-                }
-            });
+            // Removed mouse/touch events for game canvas movement
 
             const gameTimer = setInterval(() => {
                 if (!gameOver && timeLeft-- <= 0) {
@@ -641,4 +588,4 @@
         });
     </script>
 </body>
-</html
+</html>
