@@ -1,28 +1,19 @@
 document.addEventListener("DOMContentLoaded", function () {
-    const gameContainer = document.getElementById("duck-heist-game");
-    if (!gameContainer) {
-        console.error("Error: 'duck-heist-game' div not found!");
-        return;
-    }
-
-    // Create Canvas
     const gameCanvas = document.createElement("canvas");
     const ctx = gameCanvas.getContext("2d");
+    document.getElementById("duck-heist-game").appendChild(gameCanvas);
     gameCanvas.width = 800;
     gameCanvas.height = 600;
-    gameContainer.appendChild(gameCanvas);
 
-    // Load Duck Image
     const duckImg = new Image();
-    duckImg.src = "duck.png"; // Make sure the duck image is in the correct folder
-
-    // Game Objects
+    duckImg.src = "duck.png";
     let duck = { x: 50, y: 300, width: 50, height: 50, speed: 7 };
-    let bread = { x: Math.random() * 760, y: Math.random() * 560, width: 30, height: 30 };
+    let bread = { x: Math.random() * 760, y: Math.random() * 560, width: 20, height: 20 };
     let guards = [{ x: 600, y: 300, width: 40, height: 40, speed: 3 }];
     let obstacles = [{ x: 400, y: 200, width: 50, height: 50 }];
     let score = 0;
     let timeLeft = 60;
+    let gameOver = false;
 
     function drawDuck() {
         ctx.drawImage(duckImg, duck.x, duck.y, duck.width, duck.height);
@@ -63,36 +54,39 @@ document.addEventListener("DOMContentLoaded", function () {
                a.y + a.height > b.y;
     }
 
-    function restartGame() {
-        score = 0;
-        timeLeft = 60;
-        duck.x = 50;
-        duck.y = 300;
-        guards = [{ x: 600, y: 300, width: 40, height: 40, speed: 3 }];
-        bread.x = Math.random() * 760;
-        bread.y = Math.random() * 560;
-    }
-
     function updateGame() {
+        if (gameOver) return;
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
         drawDuck();
         drawBread();
         drawGuards();
         drawObstacles();
         moveGuards();
-
+        
         if (checkCollision(duck, bread)) {
             score++;
-            bread.x = Math.random() * (gameCanvas.width - bread.width);
-            bread.y = Math.random() * (gameCanvas.height - bread.height);
+            bread.x = Math.random() * 760;
+            bread.y = Math.random() * 560;
         }
 
         guards.forEach(guard => {
             if (checkCollision(duck, guard)) {
-                alert("Caught by security! Game Over.");
-                restartGame();
+                endGame("Caught by security! Game Over.");
             }
         });
+
+        obstacles.forEach(obstacle => {
+            if (checkCollision(duck, obstacle)) {
+                duck.x -= duck.speed;
+                duck.y -= duck.speed;
+            }
+        });
+    }
+
+    function endGame(message) {
+        gameOver = true;
+        alert(message);
+        document.getElementById("restart-btn").style.display = "block";
     }
 
     function gameLoop() {
@@ -100,45 +94,46 @@ document.addEventListener("DOMContentLoaded", function () {
         requestAnimationFrame(gameLoop);
     }
 
-    // Keyboard Controls
     window.addEventListener("keydown", function (event) {
-        if (event.key === "ArrowUp" && duck.y > 0) duck.y -= duck.speed;
-        if (event.key === "ArrowDown" && duck.y < gameCanvas.height - duck.height) duck.y += duck.speed;
-        if (event.key === "ArrowLeft" && duck.x > 0) duck.x -= duck.speed;
-        if (event.key === "ArrowRight" && duck.x < gameCanvas.width - duck.width) duck.x += duck.speed;
+        if (event.key === "ArrowUp") duck.y -= duck.speed;
+        if (event.key === "ArrowDown") duck.y += duck.speed;
+        if (event.key === "ArrowLeft") duck.x -= duck.speed;
+        if (event.key === "ArrowRight") duck.x += duck.speed;
     });
 
-    // Touch Controls for Mobile
     let touchStartX = 0, touchStartY = 0;
-
-    gameCanvas.addEventListener("touchstart", function (e) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
+    window.addEventListener("touchstart", function (event) {
+        touchStartX = event.touches[0].clientX;
+        touchStartY = event.touches[0].clientY;
     });
 
-    gameCanvas.addEventListener("touchmove", function (e) {
-        let touchX = e.touches[0].clientX;
-        let touchY = e.touches[0].clientY;
+    window.addEventListener("touchmove", function (event) {
+        let touchEndX = event.touches[0].clientX;
+        let touchEndY = event.touches[0].clientY;
+        let deltaX = touchEndX - touchStartX;
+        let deltaY = touchEndY - touchStartY;
 
-        if (touchX < touchStartX) duck.x -= duck.speed;  // Swipe left
-        if (touchX > touchStartX) duck.x += duck.speed;  // Swipe right
-        if (touchY < touchStartY) duck.y -= duck.speed;  // Swipe up
-        if (touchY > touchStartY) duck.y += duck.speed;  // Swipe down
-
-        touchStartX = touchX;
-        touchStartY = touchY;
-
-        e.preventDefault();
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            if (deltaX > 0) duck.x += duck.speed;
+            else duck.x -= duck.speed;
+        } else {
+            if (deltaY > 0) duck.y += duck.speed;
+            else duck.y -= duck.speed;
+        }
     });
 
-    // Timer
     setInterval(() => {
-        timeLeft--;
-        if (timeLeft <= 0) {
-            alert("Time’s up! Game Over.");
-            restartGame();
+        if (!gameOver) {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                endGame("Time’s up! Game Over.");
+            }
         }
     }, 1000);
+
+    document.getElementById("restart-btn").addEventListener("click", function () {
+        location.reload();
+    });
 
     gameLoop();
 });
