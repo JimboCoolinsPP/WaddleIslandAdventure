@@ -32,6 +32,7 @@
       width: 200px;
       text-align: center;
       transition: transform 0.2s;
+      cursor: pointer;
     }
     .game-item:hover {
       transform: scale(1.05);
@@ -46,6 +47,22 @@
       text-decoration: none;
       font-weight: bold;
       margin-top: 10px;
+      cursor: pointer;
+    }
+    .game-container {
+      margin: 20px auto;
+      width: 80%;
+      max-width: 800px;
+      height: 500px;
+      background: black;
+      border: 3px solid #4caf50;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
     footer {
       background: #111;
@@ -56,13 +73,31 @@
 </head>
 <body>
   <header>My Browser Games</header>
+  
+  <!-- Game Selection -->
   <div class="game-grid">
-    <div class="game-item">
+    <div class="game-item" onclick="switchGame('game-duckheist.html')">
       <img src="https://i.imgur.com/example1.png" alt="Duck Heist">
-      <a href="game-duckheist.html">Play Duck Heist</a>
+      <a>Play Duck Heist</a>
     </div>
-    <div class="game-item">
+    <div class="game-item" onclick="switchGame('game-quackventure.html')">
       <img src="https://i.imgur.com/example2.png" alt="Quackventure">
-      <a href="game-quackventure.html">Play Quackventure</a>
+      <a>Play Quackventure</a>
     </div>
   </div>
+
+  <!-- Game Display -->
+  <div class="game-container">
+    <iframe id="gameFrame" src="game-quackventure.html"></iframe>
+  </div>
+
+  <footer>© 2025 My Games</footer>
+
+  <script>
+    function switchGame(gameUrl) {
+      document.getElementById("gameFrame").src = gameUrl;
+    }
+  </script>
+
+</body>
+</html>
