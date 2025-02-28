@@ -273,18 +273,13 @@
             }
         }
         
-        // Initial canvas sizing
-        resizeCanvas();
-        
-        // Handle window resize
-        window.addEventListener('resize', resizeCanvas);
-
         // Game state
-        let gameStarted = false;
-        let gamePaused = false;
-        let gameOver = false;
-        let score = 0;
-        let coins = 0;
+let gameStarted = false;
+let gamePaused = false;
+let gameOver = false;
+
+// Initial canvas sizing
+resizeCanvas();
         
         // Duck object (similar to flappy bird)
         let duck = {
