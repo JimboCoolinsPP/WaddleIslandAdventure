@@ -4,7 +4,10 @@
 const canvas = document.getElementById('gameCanvas') || document.createElement('canvas');
 canvas.width = 800;
 canvas.height = 600;
-document.body.appendChild(canvas);
+if (!document.getElementById('gameCanvas')) {
+  canvas.id = 'gameCanvas';
+  document.body.appendChild(canvas);
+}
 const ctx = canvas.getContext('2d');
 
 // Game variables
@@ -12,8 +15,12 @@ let score = 0;
 let gameOver = false;
 let gameWon = false;
 const breadcrumbsToWin = 20;
+let invincible = false;
+let invincibleTimer = 0;
+let hidden = false;
+let hiddenTimer = 0;
 
-// Duck properties
+// Game objects
 const duck = {
   x: 400,
   y: 300,
@@ -49,12 +56,32 @@ for (let i = 0; i < 3; i++) {
   });
 }
 
-// Handle keyboard input
+// Power-ups array
+const powerUps = [];
+const powerUpTypes = [
+  {
+    name: 'invincibility',
+    color: '#FFD700',
+    duration: 5000,
+    spawnRate: 0.005
+  },
+  {
+    name: 'hiding',
+    color: '#32CD32',
+    duration: 3000,
+    spawnRate: 0.007
+  }
+];
+
+// Touch controls
+let touchX = 0;
+let touchY = 0;
+let isTouching = false;
+
+// Input handling for keyboard
 const keys = {};
 window.addEventListener('keydown', (e) => {
   keys[e.key] = true;
-});
-window.addEventListener('keydown', (e) => {
   // Restart game if game over and Enter key is pressed
   if ((gameOver || gameWon) && e.key === 'Enter') {
     resetGame();
@@ -64,12 +91,80 @@ window.addEventListener('keyup', (e) => {
   keys[e.key] = false;
 });
 
-// Move duck based on keyboard input
+// Input handling for touch devices
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  isTouching = true;
+  const touch = e.touches[0];
+  touchX = touch.clientX - canvas.getBoundingClientRect().left;
+  touchY = touch.clientY - canvas.getBoundingClientRect().top;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (isTouching) {
+    const touch = e.touches[0];
+    touchX = touch.clientX - canvas.getBoundingClientRect().left;
+    touchY = touch.clientY - canvas.getBoundingClientRect().top;
+  }
+});
+
+canvas.addEventListener('touchend', () => {
+  isTouching = false;
+  // Restart game if game over and screen is touched
+  if (gameOver || gameWon) {
+    resetGame();
+  }
+});
+
+// Handle resizing for responsiveness
+function resizeCanvas() {
+  const containerWidth = window.innerWidth;
+  const containerHeight = window.innerHeight;
+  
+  // Keep aspect ratio
+  const aspectRatio = 800 / 600;
+  let newWidth = containerWidth;
+  let newHeight = containerWidth / aspectRatio;
+  
+  if (newHeight > containerHeight) {
+    newHeight = containerHeight;
+    newWidth = containerHeight * aspectRatio;
+  }
+  
+  canvas.style.width = `${newWidth}px`;
+  canvas.style.height = `${newHeight}px`;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Move duck based on input
 function moveDuck() {
-  if (keys['ArrowUp'] && duck.y > 0) duck.y -= duck.speed;
-  if (keys['ArrowDown'] && duck.y < canvas.height - duck.height) duck.y += duck.speed;
-  if (keys['ArrowLeft'] && duck.x > 0) duck.x -= duck.speed;
-  if (keys['ArrowRight'] && duck.x < canvas.width - duck.width) duck.x += duck.speed;
+  // Keyboard controls
+  if (keys['ArrowUp'] || keys['w']) duck.y = Math.max(0, duck.y - duck.speed);
+  if (keys['ArrowDown'] || keys['s']) duck.y = Math.min(canvas.height - duck.height, duck.y + duck.speed);
+  if (keys['ArrowLeft'] || keys['a']) duck.x = Math.max(0, duck.x - duck.speed);
+  if (keys['ArrowRight'] || keys['d']) duck.x = Math.min(canvas.width - duck.width, duck.x + duck.speed);
+  
+  // Touch controls - move toward touch position
+  if (isTouching) {
+    const dx = touchX - (duck.x + duck.width / 2);
+    const dy = touchY - (duck.y + duck.height / 2);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > duck.speed) {
+      duck.x += (dx / distance) * duck.speed;
+      duck.y += (dy / distance) * duck.speed;
+    } else {
+      duck.x = touchX - duck.width / 2;
+      duck.y = touchY - duck.height / 2;
+    }
+    
+    // Keep duck within bounds
+    duck.x = Math.max(0, Math.min(canvas.width - duck.width, duck.x));
+    duck.y = Math.max(0, Math.min(canvas.height - duck.height, duck.y));
+  }
 }
 
 // Move guards and handle collisions
@@ -87,8 +182,8 @@ function moveGuards() {
       guard.speedY *= -1;
     }
     
-    // Check collision with duck
-    if (isColliding(duck, guard)) {
+    // Check collision with duck (only if not invincible and not hidden)
+    if (!invincible && !hidden && isColliding(duck, guard)) {
       gameOver = true;
     }
   });
@@ -118,6 +213,49 @@ function collectBreadcrumbs() {
   }
 }
 
+// Handle power-ups
+function managePowerUps() {
+  // Spawn new power-ups
+  powerUpTypes.forEach(type => {
+    if (Math.random() < type.spawnRate && !gameOver && !gameWon) {
+      powerUps.push({
+        x: Math.random() * (canvas.width - 30),
+        y: Math.random() * (canvas.height - 30),
+        width: 30,
+        height: 30,
+        type: type.name,
+        color: type.color
+      });
+    }
+  });
+  
+  // Check for collision with power-ups
+  for (let i = powerUps.length - 1; i >= 0; i--) {
+    if (isColliding(duck, powerUps[i])) {
+      const powerType = powerUps[i].type;
+      
+      if (powerType === 'invincibility') {
+        invincible = true;
+        invincibleTimer = Date.now() + powerUpTypes[0].duration;
+      } else if (powerType === 'hiding') {
+        hidden = true;
+        hiddenTimer = Date.now() + powerUpTypes[1].duration;
+      }
+      
+      powerUps.splice(i, 1);
+    }
+  }
+  
+  // Update power-up timers
+  if (invincible && Date.now() > invincibleTimer) {
+    invincible = false;
+  }
+  
+  if (hidden && Date.now() > hiddenTimer) {
+    hidden = false;
+  }
+}
+
 // Check collision between two objects
 function isColliding(obj1, obj2) {
   return obj1.x < obj2.x + obj2.width &&
@@ -128,18 +266,28 @@ function isColliding(obj1, obj2) {
 
 // Draw functions
 function drawDuck() {
-  ctx.fillStyle = duck.color;
+  if (hidden) {
+    // Draw semi-transparent duck when hidden
+    ctx.globalAlpha = 0.3;
+  } else {
+    ctx.globalAlpha = 1.0;
+  }
+  
+  // Duck body
+  ctx.fillStyle = invincible ? '#FFA500' : duck.color;
   ctx.beginPath();
   ctx.ellipse(duck.x + duck.width/2, duck.y + duck.height/2, duck.width/2, duck.height/2, 0, 0, Math.PI * 2);
   ctx.fill();
   
-  // Draw beak
+  // Duck beak
   ctx.fillStyle = '#FF6600';
   ctx.beginPath();
   ctx.moveTo(duck.x + duck.width, duck.y + duck.height/2);
   ctx.lineTo(duck.x + duck.width + 20, duck.y + duck.height/2);
   ctx.lineTo(duck.x + duck.width, duck.y + duck.height/2 + 10);
   ctx.fill();
+  
+  ctx.globalAlpha = 1.0;
 }
 
 function drawBreadcrumbs() {
@@ -156,10 +304,57 @@ function drawGuards() {
   });
 }
 
+function drawPowerUps() {
+  powerUps.forEach(powerUp => {
+    ctx.fillStyle = powerUp.color;
+    ctx.beginPath();
+    ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, powerUp.width/2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw icon inside powerup
+    ctx.fillStyle = '#FFFFFF';
+    if (powerUp.type === 'invincibility') {
+      ctx.fillText('I', powerUp.x + powerUp.width/2 - 4, powerUp.y + powerUp.height/2 + 4);
+    } else if (powerUp.type === 'hiding') {
+      ctx.fillText('H', powerUp.x + powerUp.width/2 - 4, powerUp.y + powerUp.height/2 + 4);
+    }
+  });
+}
+
 function drawScore() {
   ctx.fillStyle = '#000000';
   ctx.font = '20px Arial';
+  ctx.textAlign = 'left';
   ctx.fillText(`Breadcrumbs: ${score}/${breadcrumbsToWin}`, 20, 30);
+}
+
+function drawPowerUpStatus() {
+  ctx.fillStyle = '#000000';
+  ctx.font = '16px Arial';
+  ctx.textAlign = 'left';
+  
+  let statusY = 60;
+  
+  if (invincible) {
+    const timeLeft = Math.max(0, Math.ceil((invincibleTimer - Date.now()) / 1000));
+    ctx.fillText(`Invincibility: ${timeLeft}s`, 20, statusY);
+    statusY += 25;
+  }
+  
+  if (hidden) {
+    const timeLeft = Math.max(0, Math.ceil((hiddenTimer - Date.now()) / 1000));
+    ctx.fillText(`Hiding: ${timeLeft}s`, 20, statusY);
+  }
+}
+
+function drawControls() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+  
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Controls: Arrow Keys or WASD (keyboard) | Touch and drag (mobile)', canvas.width / 2, canvas.height - 15);
 }
 
 // Game state functions
@@ -174,7 +369,7 @@ function drawGameOver() {
   
   ctx.font = '20px Arial';
   ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + 40);
-  ctx.fillText('Press Enter to play again', canvas.width / 2, canvas.height / 2 + 80);
+  ctx.fillText('Press Enter or Touch Screen to play again', canvas.width / 2, canvas.height / 2 + 80);
 }
 
 function drawGameWon() {
@@ -188,13 +383,15 @@ function drawGameWon() {
   
   ctx.font = '20px Arial';
   ctx.fillText(`You collected ${score} breadcrumbs!`, canvas.width / 2, canvas.height / 2 + 40);
-  ctx.fillText('Press Enter to play again', canvas.width / 2, canvas.height / 2 + 80);
+  ctx.fillText('Press Enter or Touch Screen to play again', canvas.width / 2, canvas.height / 2 + 80);
 }
 
 function resetGame() {
   score = 0;
   gameOver = false;
   gameWon = false;
+  invincible = false;
+  hidden = false;
   
   duck.x = 400;
   duck.y = 300;
@@ -224,6 +421,9 @@ function resetGame() {
       color: '#FF0000'
     });
   }
+  
+  // Clear power-ups
+  powerUps.length = 0;
 }
 
 // Main game loop
@@ -236,12 +436,16 @@ function gameLoop() {
     moveDuck();
     moveGuards();
     collectBreadcrumbs();
+    managePowerUps();
     
     // Draw everything
     drawBreadcrumbs();
+    drawPowerUps();
     drawDuck();
     drawGuards();
     drawScore();
+    drawPowerUpStatus();
+    drawControls();
   } else if (gameOver) {
     drawGameOver();
   } else if (gameWon) {
@@ -253,4 +457,5 @@ function gameLoop() {
 }
 
 // Start the game
+resetGame();
 gameLoop();
