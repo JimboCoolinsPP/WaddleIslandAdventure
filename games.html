@@ -32,7 +32,6 @@
       width: 200px;
       text-align: center;
       transition: transform 0.2s;
-      cursor: pointer;
     }
     .game-item:hover {
       transform: scale(1.05);
@@ -47,7 +46,6 @@
       text-decoration: none;
       font-weight: bold;
       margin-top: 10px;
-      cursor: pointer;
     }
     .game-container {
       margin: 20px auto;
@@ -78,24 +76,25 @@
   <div class="game-grid">
     <div class="game-item" onclick="switchGame('game-duckheist.html')">
       <img src="https://i.imgur.com/example1.png" alt="Duck Heist">
-      <a>Play Duck Heist</a>
+      <a href="game-duckheist.html">Play Duck Heist</a>
     </div>
     <div class="game-item" onclick="switchGame('game-quackventure.html')">
       <img src="https://i.imgur.com/HMArhe5.jpeg" alt="Quackventure">
-      <a>Play Quackventure</a>
+      <a href="game-quackventure.html">Play Quackventure</a>
     </div>
   </div>
 
   <!-- Game Display -->
   <div class="game-container">
-    <iframe id="gameFrame" src="game-quackventure.html"></iframe>
+    <iframe id="gameFrame" src="game-duckheist.html"></iframe>
   </div>
 
   <footer>© 2025 My Games</footer>
 
   <script>
     function switchGame(gameUrl) {
-      document.getElementById("gameFrame").src = gameUrl;
+      let frame = document.getElementById("gameFrame");
+      frame.src = gameUrl;
     }
   </script>
 
