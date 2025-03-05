@@ -111,16 +111,36 @@
         let coins = [];
         let gameSpeed = containerWidth * 0.005;
         let collectedCoins = new Set();
+        
+        // New difficulty tracking variables
+        let pipeGenerationCount = 0;
+        let difficultyMultiplier = 1;
 
         function createPipe() {
-            // Increased gap size to 35% of screen height
-            const gapHeight = containerHeight * 0.35;
+            pipeGenerationCount++;
+
+            // Dynamically adjust difficulty
+            if (pipeGenerationCount % 10 === 0) {
+                difficultyMultiplier += 0.1;
+            }
+
+            // Variable gap sizes
+            const minGapHeight = containerHeight * 0.25;
+            const maxGapHeight = containerHeight * 0.4;
+            const gapHeight = Math.max(
+                minGapHeight, 
+                Math.min(
+                    maxGapHeight, 
+                    containerHeight * (0.35 + (Math.random() - 0.5) * 0.1 * difficultyMultiplier)
+                )
+            );
             
-            // Adjust gap placement with more vertical space
-            const minTopPosition = containerHeight * 0.15;
-            const maxTopPosition = containerHeight * 0.75 - gapHeight;
+            // More dynamic vertical placement
+            const verticalVariability = 0.2 * difficultyMultiplier;
+            const minTopPosition = containerHeight * (0.15 - verticalVariability / 2);
+            const maxTopPosition = containerHeight * (0.75 - verticalVariability / 2);
             
-            // Randomize gap position
+            // Randomize gap position with increased unpredictability
             const gapTop = Math.random() * (maxTopPosition - minTopPosition) + minTopPosition;
 
             const topPipeHeight = gapTop;
@@ -132,12 +152,14 @@
             topPipe.style.top = '0px';
             topPipe.style.height = `${topPipeHeight}px`;
             topPipe.style.transform = 'rotate(180deg)';
+            topPipe.style.left = `${containerWidth}px`;
 
             // Create bottom pipe
             const bottomPipe = document.createElement('div');
             bottomPipe.classList.add('pipe', 'pipe-bottom');
             bottomPipe.style.bottom = '0px';
             bottomPipe.style.height = `${bottomPipeHeight}px`;
+            bottomPipe.style.left = `${containerWidth}px`;
 
             gameContainer.appendChild(topPipe);
             gameContainer.appendChild(bottomPipe);
@@ -153,11 +175,15 @@
                 id: pipeId
             });
 
-            // Add a coin in the middle of the gap
+            // Smarter coin placement
             const coin = document.createElement('div');
             coin.classList.add('coin');
+            
+            // More strategic coin placement within the gap
+            const coinVerticalOffset = gapHeight * (0.3 + Math.random() * 0.4);
             coin.style.left = `${containerWidth}px`;
-            coin.style.top = `${gapTop + gapHeight / 2}px`;
+            coin.style.top = `${gapTop + coinVerticalOffset}px`;
+            
             coin.dataset.pipeId = pipeId;
             gameContainer.appendChild(coin);
             coins.push({ 
@@ -253,6 +279,10 @@
             score = 0;
             collectedCoins.clear();
             scoreDisplay.textContent = 'Score: 0';
+
+            // Reset difficulty tracking
+            pipeGenerationCount = 0;
+            difficultyMultiplier = 1;
 
             // Clear existing pipes and coins
             pipes.forEach(pipe => {
