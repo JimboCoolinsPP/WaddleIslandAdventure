@@ -3,101 +3,185 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Games</title>
+  <title>Duck Games Portal</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Arial', sans-serif;
       margin: 0;
       padding: 0;
-      background: #222;
-      color: white;
-      text-align: center;
+      background: #1a1a1a;
+      color: #fff;
     }
+    
     header {
-      background: #111;
-      padding: 20px;
-      font-size: 2rem;
-    }
-    .game-grid {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      padding: 20px;
-    }
-    .game-item {
-      background: #333;
-      padding: 10px;
-      margin: 10px;
-      border-radius: 10px;
-      width: 200px;
+      background: #2d2d2d;
+      padding: 2rem;
       text-align: center;
-      transition: transform 0.2s;
-      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .game-item:hover {
-      transform: scale(1.05);
+
+    .game-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
     }
-    .game-item img {
-      width: 100%;
-      border-radius: 10px;
-    }
-    .game-item a {
-      display: block;
-      color: #4caf50;
-      text-decoration: none;
-      font-weight: bold;
-      margin-top: 10px;
-      cursor: pointer;
-    }
-    .game-container {
-      margin: 20px auto;
-      width: 80%;
-      max-width: 800px;
-      height: 500px;
-      background: black;
-      border: 3px solid #4caf50;
-      border-radius: 10px;
+
+    .game-card {
+      background: #333;
+      border-radius: 12px;
       overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
     }
-    iframe {
+
+    .game-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+
+    .game-thumbnail {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-bottom: 3px solid #4CAF50;
+    }
+
+    .game-info {
+      padding: 1.5rem;
+    }
+
+    .game-frame-container {
+      margin: 2rem auto;
+      width: 90%;
+      max-width: 800px;
+      height: 600px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    #gameFrame {
       width: 100%;
       height: 100%;
       border: none;
+      background: #000;
     }
+
     footer {
-      background: #111;
-      padding: 10px;
-      margin-top: 20px;
+      background: #2d2d2d;
+      padding: 1.5rem;
+      text-align: center;
+      margin-top: 2rem;
+    }
+
+    /* Loading spinner */
+    .loader {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4CAF50;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <header>My Browser Games</header>
-  
-  <!-- Game Selection -->
+  <header>
+    <h1>Duck Adventure Games</h1>
+  </header>
+
   <div class="game-grid">
-    <div class="game-item" onclick="switchGame('game-duckheist.html')">
-      <img src="https://i.imgur.com/example1.png" alt="Duck Heist">
-      <a>Play Duck Heist</a>
+    <!-- Duck Heist Card -->
+    <div class="game-card" onclick="loadGame('duck-heist')">
+      <img src="placeholder-duckheist.jpg" alt="Duck Heist" class="game-thumbnail">
+      <div class="game-info">
+        <h3>Duck Heist</h3>
+        <p>Steal the golden corn from the evil farmer!</p>
+      </div>
     </div>
-    <div class="game-item" onclick="switchGame('game-quackventure.html')">
-      <img src="https://imgur.com/HMArhe5" alt="Quackventure">
-      <a>Play Quackventure</a>
+
+    <!-- Quackventure Card -->
+    <div class="game-card" onclick="loadGame('quackventure')">
+      <img src="placeholder-quackventure.jpg" alt="Quackventure" class="game-thumbnail">
+      <div class="game-info">
+        <h3>Quackventure</h3>
+        <p>Explore the pond and collect shiny objects!</p>
+      </div>
     </div>
   </div>
 
-  <!-- Game Display -->
-  <div class="game-container">
-    <iframe id="gameFrame" src="game-quackventure.html"></iframe>
+  <div class="game-frame-container">
+    <iframe id="gameFrame" src="about:blank"></iframe>
   </div>
 
-  <footer>© 2025 My Games</footer>
+  <div class="loader" id="loadingSpinner"></div>
+
+  <footer>
+    <p>© 2023 Duck Games Studio | All quacks reserved</p>
+  </footer>
 
   <script>
-    function switchGame(gameUrl) {
-      document.getElementById("gameFrame").src = gameUrl;
-    }
-  </script>
+    // Game configuration
+    const games = {
+      'duck-heist': {
+        url: 'duck-heist/index.html',
+        title: 'Duck Heist'
+      },
+      'quackventure': {
+        url: 'quackventure/index.html',
+        title: 'Quackventure'
+      }
+    };
 
+    // Game loader function
+    function loadGame(gameId) {
+      const spinner = document.getElementById('loadingSpinner');
+      const frame = document.getElementById('gameFrame');
+      
+      if (!games[gameId]) {
+        alert('Game not found!');
+        return;
+      }
+
+      // Show loading spinner
+      spinner.style.display = 'block';
+      frame.style.opacity = '0';
+
+      // Load game
+      frame.src = games[gameId].url;
+      
+      // Handle load completion
+      frame.onload = () => {
+        spinner.style.display = 'none';
+        frame.style.opacity = '1';
+        document.title = `${games[gameId].title} | Duck Games`;
+      };
+
+      // Handle errors
+      frame.onerror = () => {
+        spinner.style.display = 'none';
+        alert('Failed to load game. Please try again later.');
+        frame.src = 'about:blank';
+      };
+    }
+
+    // Initial load
+    window.addEventListener('DOMContentLoaded', () => {
+      loadGame('duck-heist');
+    });
+  </script>
 </body>
 </html>
