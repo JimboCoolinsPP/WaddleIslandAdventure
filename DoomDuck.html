@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOOM Duck</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: black; }
+    canvas { display: block; }
+  </style>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const canvas = document.createElement("canvas");
+      document.body.appendChild(canvas);
+      const ctx = canvas.getContext("2d");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      // Player
+      const player = { x: canvas.width / 2, y: canvas.height - 50, size: 30, speed: 5 };
+      
+      // Bullets
+      const bullets = [];
+      
+      // Enemies
+      const enemies = [];
+      setInterval(() => {
+        enemies.push({ x: Math.random() * canvas.width, y: 0, size: 30, speed: 2 });
+      }, 1000);
+      
+      // Controls
+      const keys = {};
+      document.addEventListener("keydown", (e) => keys[e.key] = true);
+      document.addEventListener("keyup", (e) => keys[e.key] = false);
+      document.addEventListener("click", () => {
+        bullets.push({ x: player.x, y: player.y, size: 10, speed: 7 });
+      });
+      
+      function update() {
+        if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
+        if (keys["ArrowRight"] && player.x < canvas.width - player.size) player.x += player.speed;
+        
+        bullets.forEach((bullet, index) => {
+          bullet.y -= bullet.speed;
+          if (bullet.y < 0) bullets.splice(index, 1);
+        });
+        
+        enemies.forEach((enemy, eIndex) => {
+          enemy.y += enemy.speed;
+          bullets.forEach((bullet, bIndex) => {
+            if (Math.abs(bullet.x - enemy.x) < 20 && Math.abs(bullet.y - enemy.y) < 20) {
+              enemies.splice(eIndex, 1);
+              bullets.splice(bIndex, 1);
+            }
+          });
+        });
+      }
+      
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(player.x, player.y, player.size, player.size);
+        
+        ctx.fillStyle = "orange";
+        bullets.forEach(bullet => ctx.fillRect(bullet.x, bullet.y, bullet.size, bullet.size));
+        
+        ctx.fillStyle = "red";
+        enemies.forEach(enemy => ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size));
+      }
+      
+      function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+      }
+      gameLoop();
+    });
+  </script>
+</head>
+<body></body>
+</html>
