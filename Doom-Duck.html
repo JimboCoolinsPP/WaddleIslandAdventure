@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doom Duck Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-color: #000;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            background-color: #300;
+        }
+        #hud {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            color: #f00;
+            font-family: monospace;
+            font-size: 24px;
+            text-shadow: 2px 2px 0 #000;
+        }
+        #ammo, #health, #score {
+            margin: 0 20px;
+        }
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #f00;
+        }
+        #title {
+            font-size: 50px;
+            font-weight: bold;
+            margin-bottom: 40px;
+            text-shadow: 3px 3px 0 #700;
+        }
+        button {
+            background-color: #700;
+            color: #fff;
+            border: none;
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #f00;
+        }
+        .enemy {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: #0a0;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .enemy::before {
+            content: "V";
+            color: black;
+            font-weight: bold;
+            transform: rotate(180deg);
+        }
+        .bullet {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #ff0;
+            border-radius: 50%;
+        }
+        #player {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: #fa0;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #player::before {
+            content: "V";
+            color: black;
+            font-weight: bold;
+        }
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #f00;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="player"></div>
+        <div id="hud">
+            <div id="health">HEALTH: 100</div>
+            <div id="ammo">AMMO: 50</div>
+            <div id="score">SCORE: 0</div>
+        </div>
+        <div id="startScreen">
+            <div id="title">DOOM DUCK</div>
+            <button id="startButton">START GAME</button>
+        </div>
+        <div id="gameOverScreen">
+            <div id="title">GAME OVER</div>
+            <div id="finalScore">SCORE: 0</div>
+            <button id="restartButton">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        const game = {
+            started: false,
+            over: false,
+            score: 0,
+            health: 100,
+            ammo: 50,
+            enemySpeed: 1.5,
+            enemySpawnRate: 1500,
+            lastSpawnTime: 0,
+            bullets: [],
+            enemies: [],
+            playerSpeed: 5,
+            playerSize: 40,
+            bulletSpeed: 8,
+            canvas: null,
+            ctx: null,
+            canvasWidth: 800,
+            canvasHeight: 600,
+            walls: [
+                {x: 100, y: 100, width: 200, height: 30},
+                {x: 500, y: 100, width: 200, height: 30},
+                {x: 100, y: 400, width: 200, height: 30},
+                {x: 500, y: 400, width: 200, height: 30},
+                {x: 300, y: 200, width: 30, height: 200}
+            ]
+        };
+
+        // Player
+        const player = {
+            x: 400,
+            y: 300,
+            angle: 0,
+            moveForward: false,
+            moveBackward: false,
+            turnLeft: false,
+            turnRight: false,
+            shooting: false,
+            lastShotTime: 0,
+            shotCooldown: 200,
+            speed: 5,
+            turnSpeed: 0.05
+        };
+
+        // Elements
+        const gameContainer = document.getElementById('gameContainer');
+        const playerEl = document.getElementById('player');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const restartButton = document.getElementById('restartButton');
+        const healthEl = document.getElementById('health');
+        const ammoEl = document.getElementById('ammo');
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('finalScore');
+        const canvas = document.getElementById('gameCanvas');
+        game.canvas = canvas;
+        game.ctx = canvas.getContext('2d');
+
+        // Set canvas dimensions
+        canvas.width = game.canvasWidth;
+        canvas.height = game.canvasHeight;
+
+        // Start game
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', restartGame);
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            game.started = true;
+            player.x = game.canvasWidth / 2;
+            player.y = game.canvasHeight / 2;
+            gameLoop();
+            setInterval(spawnEnemy, game.enemySpawnRate);
+        }
+
+        function restartGame() {
+            gameOverScreen.style.display = 'none';
+            game.score = 0;
+            game.health = 100;
+            game.ammo = 50;
+            game.enemies = [];
+            game.bullets = [];
+            game.over = false;
+            player.x = game.canvasWidth / 2;
+            player.y = game.canvasHeight / 2;
+            updateHUD();
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (game.over) return;
+            
+            // Clear canvas
+            game.ctx.clearRect(0, 0, game.canvasWidth, game.canvasHeight);
+            
+            // Draw walls
+            drawWalls();
+            
+            // Move player
+            updatePlayer();
+            
+            // Update bullets
+            updateBullets();
+            
+            // Update enemies
+            updateEnemies();
+            
+            // Check for collisions
+            checkCollisions();
+            
+            // Draw player
+            drawPlayer();
+            
+            // Request next frame
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawWalls() {
+            game.ctx.fillStyle = '#600';
+            for (const wall of game.walls) {
+                game.ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+            }
+        }
+
+        function updatePlayer() {
+            if (player.moveForward) {
+                player.x += Math.sin(player.angle) * player.speed;
+                player.y -= Math.cos(player.angle) * player.speed;
+            }
+            if (player.moveBackward) {
+                player.x -= Math.sin(player.angle) * player.speed;
+                player.y += Math.cos(player.angle) * player.speed;
+            }
+            if (player.turnLeft) {
+                player.angle -= player.turnSpeed;
+            }
+            if (player.turnRight) {
+                player.angle += player.turnSpeed;
+            }
+            
+            // Keep player in bounds
+            player.x = Math.max(20, Math.min(player.x, game.canvasWidth - 20));
+            player.y = Math.max(20, Math.min(player.y, game.canvasHeight - 20));
+            
+            // Check wall collisions
+            for (const wall of game.walls) {
+                if (player.x + 20 > wall.x && player.x - 20 < wall.x + wall.width &&
+                    player.y + 20 > wall.y && player.y - 20 < wall.y + wall.height) {
+                    // Simple collision response - push out
+                    const overlapX = Math.min(player.x + 20 - wall.x, wall.x + wall.width - (player.x - 20));
+                    const overlapY = Math.min(player.y + 20 - wall.y, wall.y + wall.height - (player.y - 20));
+                    
+                    if (overlapX < overlapY) {
+                        player.x += (player.x < wall.x + wall.width / 2) ? -overlapX : overlapX;
+                    } else {
+                        player.y += (player.y < wall.y + wall.height / 2) ? -overlapY : overlapY;
+                    }
+                }
+            }
+            
+            // Update player element position and rotation
+            playerEl.style.left = `${player.x - 20}px`;
+            playerEl.style.top = `${player.y - 20}px`;
+            playerEl.style.transform = `rotate(${player.angle}rad)`;
+            
+            // Handle shooting
+            if (player.shooting && Date.now() - player.lastShotTime > player.shotCooldown && game.ammo > 0) {
+                shootBullet();
+                player.lastShotTime = Date.now();
+                game.ammo--;
+                updateHUD();
+            }
+        }
+
+        function shootBullet() {
+            const bullet = document.createElement('div');
+            bullet.className = 'bullet';
+            gameContainer.appendChild(bullet);
+            
+            const bulletObj = {
+                x: player.x,
+                y: player.y,
+                angle: player.angle,
+                element: bullet
+            };
+            
+            game.bullets.push(bulletObj);
+        }
+
+        function updateBullets() {
+            for (let i = game.bullets.length - 1; i >= 0; i--) {
+                const bullet = game.bullets[i];
+                
+                // Move bullet
+                bullet.x += Math.sin(bullet.angle) * game.bulletSpeed;
+                bullet.y -= Math.cos(bullet.angle) * game.bulletSpeed;
+                
+                // Update position
+                bullet.element.style.left = `${bullet.x - 5}px`;
+                bullet.element.style.top = `${bullet.y - 5}px`;
+                
+                // Check if out of bounds
+                if (bullet.x < 0 || bullet.x > game.canvasWidth || 
+                    bullet.y < 0 || bullet.y > game.canvasHeight) {
+                    gameContainer.removeChild(bullet.element);
+                    game.bullets.splice(i, 1);
+                }
+                
+                // Check wall collisions
+                for (const wall of game.walls) {
+                    if (bullet.x > wall.x && bullet.x < wall.x + wall.width &&
+                        bullet.y > wall.y && bullet.y < wall.y + wall.height) {
+                        gameContainer.removeChild(bullet.element);
+                        game.bullets.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        function spawnEnemy() {
+            if (!game.started || game.over) return;
+            
+            const now = Date.now();
+            if (now - game.lastSpawnTime < game.enemySpawnRate) return;
+            
+            game.lastSpawnTime = now;
+            
+            // Determine spawn position (outside screen edges)
+            let x, y;
+            const side = Math.floor(Math.random() * 4);
+            
+            switch (side) {
+                case 0: // top
+                    x = Math.random() * game.canvasWidth;
+                    y = -40;
+                    break;
+                case 1: // right
+                    x = game.canvasWidth + 40;
+                    y = Math.random() * game.canvasHeight;
+                    break;
+                case 2: // bottom
+                    x = Math.random() * game.canvasWidth;
+                    y = game.canvasHeight + 40;
+                    break;
+                case 3: // left
+                    x = -40;
+                    y = Math.random() * game.canvasHeight;
+                    break;
+            }
+            
+            const enemy = document.createElement('div');
+            enemy.className = 'enemy';
+            gameContainer.appendChild(enemy);
+            
+            const enemyObj = {
+                x: x,
+                y: y,
+                element: enemy,
+                health: 2
+            };
+            
+            game.enemies.push(enemyObj);
+        }
+
+        function updateEnemies() {
+            for (let i = game.enemies.length - 1; i >= 0; i--) {
+                const enemy = game.enemies[i];
+                
+                // Move towards player
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist > 0) {
+                    enemy.x += (dx / dist) * game.enemySpeed;
+                    enemy.y += (dy / dist) * game.enemySpeed;
+                }
+                
+                // Check wall collisions for enemies
+                for (const wall of game.walls) {
+                    if (enemy.x + 20 > wall.x && enemy.x - 20 < wall.x + wall.width &&
+                        enemy.y + 20 > wall.y && enemy.y - 20 < wall.y + wall.height) {
+                        // Simple AI to navigate around walls
+                        const overlapX = Math.min(enemy.x + 20 - wall.x, wall.x + wall.width - (enemy.x - 20));
+                        const overlapY = Math.min(enemy.y + 20 - wall.y, wall.y + wall.height - (enemy.y - 20));
+                        
+                        if (overlapX < overlapY) {
+                            enemy.y += (dx / dist
