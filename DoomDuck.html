@@ -1,81 +1,275 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DOOM Duck</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: black; }
-    canvas { display: block; }
-  </style>
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const canvas = document.createElement("canvas");
-      document.body.appendChild(canvas);
-      const ctx = canvas.getContext("2d");
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      
-      // Player
-      const player = { x: canvas.width / 2, y: canvas.height - 50, size: 30, speed: 5 };
-      
-      // Bullets
-      const bullets = [];
-      
-      // Enemies
-      const enemies = [];
-      setInterval(() => {
-        enemies.push({ x: Math.random() * canvas.width, y: 0, size: 30, speed: 2 });
-      }, 1000);
-      
-      // Controls
-      const keys = {};
-      document.addEventListener("keydown", (e) => keys[e.key] = true);
-      document.addEventListener("keyup", (e) => keys[e.key] = false);
-      document.addEventListener("click", () => {
-        bullets.push({ x: player.x, y: player.y, size: 10, speed: 7 });
-      });
-      
-      function update() {
-        if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
-        if (keys["ArrowRight"] && player.x < canvas.width - player.size) player.x += player.speed;
-        
-        bullets.forEach((bullet, index) => {
-          bullet.y -= bullet.speed;
-          if (bullet.y < 0) bullets.splice(index, 1);
-        });
-        
-        enemies.forEach((enemy, eIndex) => {
-          enemy.y += enemy.speed;
-          bullets.forEach((bullet, bIndex) => {
-            if (Math.abs(bullet.x - enemy.x) < 20 && Math.abs(bullet.y - enemy.y) < 20) {
-              enemies.splice(eIndex, 1);
-              bullets.splice(bIndex, 1);
-            }
-          });
-        });
-      }
-      
-      function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(player.x, player.y, player.size, player.size);
-        
-        ctx.fillStyle = "orange";
-        bullets.forEach(bullet => ctx.fillRect(bullet.x, bullet.y, bullet.size, bullet.size));
-        
-        ctx.fillStyle = "red";
-        enemies.forEach(enemy => ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size));
-      }
-      
-      function gameLoop() {
-        update();
-        draw();
-        requestAnimationFrame(gameLoop);
-      }
-      gameLoop();
-    });
-  </script>
+    <title>Doom Duck</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        #gameCanvas {
+            cursor: crosshair;
+        }
+        #hud {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-family: Arial;
+            z-index: 100;
+        }
+        #menu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0;
+            text-align: center;
+            font-family: Arial;
+        }
+    </style>
 </head>
-<body></body>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="hud"></div>
+    <div id="menu">
+        <h1>DOOM DUCK</h1>
+        <p>WASD to move | Mouse to aim | Click to shoot</p>
+        <button onclick="startGame()">START GAME</button>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+const menu = document.getElementById('menu');
+
+// Game setup
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const PLAYER_SPEED = 5;
+const BULLET_SPEED = 10;
+const ENEMY_SPEED = 2;
+const ENEMY_SPAWN_RATE = 2000;
+
+let player = {
+    x: canvas.width/2,
+    y: canvas.height/2,
+    angle: 0,
+    health: 100,
+    ammo: 50,
+    score: 0
+};
+
+let bullets = [];
+let enemies = [];
+let powerups = [];
+let keys = {};
+let gameRunning = false;
+
+// Event listeners
+window.addEventListener('keydown', e => keys[e.key] = true);
+window.addEventListener('keyup', e => keys[e.key] = false);
+canvas.addEventListener('mousemove', updatePlayerAngle);
+canvas.addEventListener('mousedown', shoot);
+
+function startGame() {
+    menu.style.display = 'none';
+    gameRunning = true;
+    player = {
+        x: canvas.width/2,
+        y: canvas.height/2,
+        health: 100,
+        ammo: 50,
+        score: 0
+    };
+    bullets = [];
+    enemies = [];
+    powerups = [];
+    enemySpawner();
+    gameLoop();
+}
+
+function updatePlayerAngle(e) {
+    const rect = canvas.getBoundingClientRect();
+    player.angle = Math.atan2(
+        e.clientY - rect.top - player.y,
+        e.clientX - rect.left - player.x
+    );
+}
+
+function shoot() {
+    if (!gameRunning || player.ammo <= 0) return;
+    
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        angle: player.angle,
+        lifetime: 50
+    });
+    
+    player.ammo--;
+}
+
+function enemySpawner() {
+    if (!gameRunning) return;
+    
+    enemies.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        angle: 0
+    });
+    
+    setTimeout(enemySpawner, ENEMY_SPAWN_RATE);
+}
+
+function updateGame() {
+    // Player movement
+    if (keys['w'] || keys['ArrowUp']) {
+        player.y -= PLAYER_SPEED;
+    }
+    if (keys['s'] || keys['ArrowDown']) {
+        player.y += PLAYER_SPEED;
+    }
+    if (keys['a'] || keys['ArrowLeft']) {
+        player.x -= PLAYER_SPEED;
+    }
+    if (keys['d'] || keys['ArrowRight']) {
+        player.x += PLAYER_SPEED;
+    }
+
+    // Update bullets
+    bullets.forEach((bullet, index) => {
+        bullet.x += Math.cos(bullet.angle) * BULLET_SPEED;
+        bullet.y += Math.sin(bullet.angle) * BULLET_SPEED;
+        bullet.lifetime--;
+
+        // Remove old bullets
+        if (bullet.lifetime <= 0) {
+            bullets.splice(index, 1);
+        }
+    });
+
+    // Update enemies
+    enemies.forEach((enemy, index) => {
+        // Move towards player
+        const angleToPlayer = Math.atan2(
+            player.y - enemy.y,
+            player.x - enemy.x
+        );
+        
+        enemy.x += Math.cos(angleToPlayer) * ENEMY_SPEED;
+        enemy.y += Math.sin(angleToPlayer) * ENEMY_SPEED;
+
+        // Collision with player
+        const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+        if (dist < 30) {
+            player.health -= 1;
+            enemies.splice(index, 1);
+        }
+    });
+
+    // Check collisions
+    bullets.forEach((bullet, bIndex) => {
+        enemies.forEach((enemy, eIndex) => {
+            const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+            if (dist < 20) {
+                bullets.splice(bIndex, 1);
+                enemies.splice(eIndex, 1);
+                player.score += 100;
+                // Chance to spawn powerup
+                if (Math.random() < 0.3) {
+                    powerups.push({
+                        x: enemy.x,
+                        y: enemy.y,
+                        type: Math.random() < 0.5 ? 'ammo' : 'health'
+                    });
+                }
+            }
+        });
+    });
+
+    // Check powerup collection
+    powerups.forEach((powerup, index) => {
+        const dist = Math.hypot(player.x - powerup.x, player.y - powerup.y);
+        if (dist < 30) {
+            if (powerup.type === 'ammo') player.ammo += 15;
+            if (powerup.type === 'health') player.health += 25;
+            powerups.splice(index, 1);
+        }
+    });
+
+    // Check game over
+    if (player.health <= 0) {
+        gameRunning = false;
+        menu.style.display = 'block';
+        menu.innerHTML = `
+            <h1>GAME OVER</h1>
+            <p>Final Score: ${player.score}</p>
+            <button onclick="startGame()">PLAY AGAIN</button>
+        `;
+    }
+}
+
+function draw() {
+    // Clear canvas
+    ctx.fillStyle = '#112';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw player
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.angle);
+    ctx.fillStyle = '#ff0';
+    ctx.beginPath();
+    ctx.moveTo(20, 0);
+    ctx.lineTo(-15, -10);
+    ctx.lineTo(-15, 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Draw bullets
+    ctx.fillStyle = '#f00';
+    bullets.forEach(bullet => {
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Draw enemies
+    ctx.fillStyle = '#0f0';
+    enemies.forEach(enemy => {
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Draw powerups
+    powerups.forEach(powerup => {
+        ctx.fillStyle = powerup.type === 'ammo' ? '#0ff' : '#f0f';
+        ctx.beginPath();
+        ctx.arc(powerup.x, powerup.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Draw HUD
+    hud.innerHTML = `
+        Health: ${Math.max(0, player.health)}<br>
+        Ammo: ${player.ammo}<br>
+        Score: ${player.score}
+    `;
+}
+
+function gameLoop() {
+    if (!gameRunning) return;
+    
+    updateGame();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+</script>
+</body>
 </html>
