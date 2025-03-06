@@ -485,10 +485,11 @@ function createBulletParticles(x, y) {
             vy: Math.sin(angle) * Math.random() * 2,
             size: Math.random() * 3 + 1,
             color: '#ff0',
-            life: Math.random() * 10
-    );
+            life: Math.random() * 10 + 5
+        });
+    }
 }
-
+    
 function dash() {
     if (!state.gameActive) return;
     if (state.timers.dashCooldown) return;
