@@ -33,11 +33,11 @@
             border-radius: 5px;
         }
         #mobileControls {
-            display: none;
+            display: flex;
             position: fixed;
             bottom: 20px;
             width: 100%;
-            justify-content: space-between;
+            justify-content: flex-start;
             padding: 0 20px;
             z-index: 100;
         }
@@ -56,18 +56,6 @@
             position: absolute;
             top: 30px;
             left: 30px;
-        }
-        #shootButton {
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 0, 0, 0.5);
-            border-radius: 50%;
-            border: 3px solid #ff0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #fff;
         }
         #menu {
             position: fixed;
@@ -145,7 +133,6 @@
         <div class="joystick" id="moveJoystick">
             <div class="joystick-knob"></div>
         </div>
-        <div id="shootButton">FIRE</div>
     </div>
     <div id="menu">
         <h1>DOOM DUCK</h1>
@@ -329,7 +316,7 @@ function initGame() {
 
     mobileControls.style.display = state.isMobile ? 'flex' : 'none';
     document.getElementById('instructions').textContent = state.isMobile ? 
-        'Left: Move | Right: Aim | Red button: Shoot' :
+        'Joystick: Move & Aim | Tap: Shoot' :
         'WASD: Move | Mouse: Aim | Click: Shoot | Space: Dash';
 }
 
@@ -347,9 +334,7 @@ function setupInput() {
         joystick.addEventListener('touchmove', handleJoystickTouch);
         joystick.addEventListener('touchend', handleJoystickEnd);
         
-        canvas.addEventListener('touchstart', handleCanvasTouch);
-        canvas.addEventListener('touchmove', handleCanvasTouch);
-        document.getElementById('shootButton').addEventListener('touchstart', shoot);
+        canvas.addEventListener('touchstart', shoot);
     }
     
     // Window resize
@@ -394,28 +379,19 @@ function handleJoystickTouch(e) {
     
     state.joystick.x = knobX / (rect.width/2);
     state.joystick.y = knobY / (rect.height/2);
+    
+    // Update player movement and angle
+    state.player.moveX = state.joystick.x;
+    state.player.moveY = state.joystick.y;
+    state.player.angle = angle;
 }
 
 function handleJoystickEnd() {
     joystickKnob.style.transform = '';
     state.joystick.x = 0;
     state.joystick.y = 0;
-}
-
-function handleCanvasTouch(e) {
-    if (e.touches.length === 0) return;
-    
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    
-    if (x > canvas.width * 0.6) { // Right side is for aiming
-        state.player.angle = Math.atan2(
-            y - state.player.y,
-            x - state.player.x
-        );
-    }
+    state.player.moveX = 0;
+    state.player.moveY = 0;
 }
 
 function shoot() {
@@ -441,6 +417,75 @@ function shoot() {
     createBulletParticles(
         state.player.x + Math.cos(state.player.angle) * config.PLAYER_SIZE,
         state.player.y + Math.sin(state.player.angle) * config.PLAYER_SIZE
+    );
+}
+
+function dash() {
+    if (!state.gameActive) return;
+    if (state.timers.dashCooldown) return;
+    
+    const dashDirection = state.player.moveX !== 0 || state.player.moveY !== 0 ?
+        { x: state.player.moveX, y: state.player.moveY } :
+        { x: Math.cos(state.player.angle), y: Math.sin(state.player.angle) };
+        
+    const length = Math.hypot(dashDirection.x, dashDirection.y);
+    if (length > 0) {
+        dashDirection.x /= length;
+        dashDirection.y /= length;
+    }
+    
+    state.player.x += dashDirection.x * 100;
+    state.player.y += dashDirection.y * 100;
+    
+    // Keep player within bounds
+    state.player.x = Math.max(config.PLAYER_SIZE, Math.min(canvas.width - config.PLAYER_SIZE, state.player.x));
+    state.player.y = Math.max(config.PLAYER_SIZE, Math.min(canvas.height - config.PLAYER_SIZE, state.player.y));
+    
+    // Create dash particles
+    for (let i = 0; i < 20; i++) {
+        state.particles.push({
+            x: state.player.x,
+            y: state.player.y,
+            vx: (Math.random() - 0.5) * 4 - dashDirection.x * 5,
+            vy: (Math.random() - 0.5) * 4 - dashDirection.y * 5,
+            size: Math.random() * 5 + 2,
+            color: '#ff0',
+            life: Math.random() * 20 + 10
+        });
+    }
+    
+    state.screenShake = 5;
+    state.timers.dashCooldown = 30; // Cooldown frames
+}
+
+// Particle effects
+function createExplosion(x, y, count, color) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3 + 1;
+        state.particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() * 6 + 3,
+            color: color,
+            life: Math.random() * 30 + 15
+        });
+    }
+}
+
+function createBulletParticles(x, y) {
+    for (let i = 0; i < 5; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        state.particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * Math.random() * 2,
+            vy: Math.sin(angle) * Math.random() * 2,
+            size: Math.random() * 3 + 1,
+            color: '#ff0',
+            life: Math.random() * 10
     );
 }
 
